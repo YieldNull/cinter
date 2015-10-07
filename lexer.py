@@ -202,7 +202,6 @@ class Lexer(object):
         # read rest chars
         c = self._getch()
         while c != '\n':
-            self.read.append(c)
             c = self._getch()
         self._ungetc(c)
 
