@@ -15,8 +15,8 @@ and when the buffer is empty, we read from input source instead.
 To make error prompting possible, we use a counter to record the lines we have read,
 and a buffer to record what we have read in current line. But there exists a bug when
 we encounter a newline and switch to it. If we unget the '\n', we need to go back to the
-previous state when we at the end of the previous line, but the buffer has been cleared.
-So, a pre_read_buffer is used to record the previous line when we switch to a new line.
+previous state, but the buffer has been cleared. So, a pre_read_buffer is used
+to record the previous line when we switch to a new line.
 
 """
 
