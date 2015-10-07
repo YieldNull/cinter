@@ -1,6 +1,26 @@
 # coding:utf-8
 """
 create on '10/5/15 10:36 PM'
+
+Here is all the tokens:
+    non-conflict:
+        + - * > ( ) { } [ ] , ;
+
+    conflict:
+        / // /*
+        = ==
+        < <>
+
+    reserved:
+        if, else, while, read, write,
+        int, real, bool, void, return
+
+    regexp:
+        LETTER	    ::=	["a"-"z"]|["A"-"Z"]
+        DIGIT	    ::=	["0"-"9"]
+        ID          ::= <LETTER> ( ( <LETTER> | <DIGIT> | "_" ) * ( <LETTER> | <DIGIT> ) )?
+        INT_LITERAL ::= ["1"-"9"] <DIGIT>* | "0"
+        REAL_LITERAL::= <INT_LITERAL> ( "."(INT_LITERAL)+ )?
 """
 
 __author__ = 'hejunjie'
@@ -18,7 +38,7 @@ class Token(object):
         self._type = t  # the str format token type, in order to print
 
     def __str__(self):
-        return "< %s: '%s' >" % (self._type, self.lexeme)
+        return "<%s: '%s'>" % (self._type, self.lexeme)
 
 
 class IntLiteral(Token):
@@ -38,9 +58,12 @@ class Identifier(Token):
         super(Identifier, self).__init__(lexeme, 'ID')
 
 
-class ReserveToken(Token):
+class ReservedToken(Token):
     def __init__(self, lexeme, t):
-        super(ReserveToken, self).__init__(lexeme, t)
+        super(ReservedToken, self).__init__(lexeme, t)
+
+    def __str__(self):
+        return "<%s: '%s'>" % ('RESERVE', self.lexeme)
 
 
 TYPE = {
@@ -54,16 +77,16 @@ TYPE = {
     'INT_LITERAL': 288, 'REAL_LITERAL': 289, 'RETURN': 290
 }
 
-IF = ReserveToken('if', 'IF')
-ELSE = ReserveToken('else', 'ELSE')
-WHILE = ReserveToken('while', 'WHILE')
-READ = ReserveToken('read', 'READ')
-WRITE = ReserveToken('write', 'WRITE')
-INT = ReserveToken('int', 'INT')
-BOOL = ReserveToken('bool', 'BOOL')
-REAL = ReserveToken('real', 'REAL')
-RETURN = ReserveToken('return', 'RETURN')
-VOID = ReserveToken('void', 'VOID')
+IF = ReservedToken('if', 'IF')
+ELSE = ReservedToken('else', 'ELSE')
+WHILE = ReservedToken('while', 'WHILE')
+READ = ReservedToken('read', 'READ')
+WRITE = ReservedToken('write', 'WRITE')
+INT = ReservedToken('int', 'INT')
+BOOL = ReservedToken('bool', 'BOOL')
+REAL = ReservedToken('real', 'REAL')
+RETURN = ReservedToken('return', 'RETURN')
+VOID = ReservedToken('void', 'VOID')
 
 PLUS = Token('+', 'PLUS')
 MINUS = Token('-', 'MINUS')

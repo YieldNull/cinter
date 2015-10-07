@@ -1,27 +1,27 @@
 # coding:utf-8
-# coding:utf-8
 """
+A lexer to recognize tokens
 create on '10/5/15 10:36 PM'
+
+We need to draw a DFA(Deterministic Finite Automaton) of
+the language's lexical rule first of all, because the main analysis arithmetic
+is based on it although CMM is very simple.
+
+We maintain a input buffer to enable lookahead mechanism.
+When read a useless char, put it to the input buffer, where we can read char later.
+A char is popped from the input buffer when it is read,
+and when the buffer is empty, we read from input source instead.
+
+To make error prompting possible, we use a counter to record the lines we have read,
+and a buffer to record what we have read in current line. But there exists a bug when
+we encounter a newline and switch to it. If we unget the '\n', we need to go back to the
+previous state when we at the end of the previous line, but the buffer has been cleared.
+So, a pre_read_buffer is used to record the previous line when we switch to a new line.
+
 """
+
 import sys
 import token
-
-"""
-non-conflict:
-    + - * > ( ) { } [ ] , ;
-
-conflict:
-    / // /*
-    = ==
-    < <>
-
-regexp:
-    LETTER	    ::=	["a"-"z"]|["A"-"Z"]
-    DIGIT	    ::=	["0"-"9"]
-    ID          ::= <LETTER> ( ( <LETTER> | <DIGIT> | "_" ) * ( <LETTER> | <DIGIT> ) )?
-    INT_LITERAL ::= ["1"-"9"] <DIGIT>* | "0"
-    REAL_LITERAL::= <INT_LITERAL> ( "."(INT_LITERAL)+ )?
-"""
 
 __author__ = 'hejunjie'
 
@@ -36,12 +36,15 @@ class Lexer(object):
         self.input = source
         self.buf = []  # read buffer
         self.line = 1  # current line
-        self.offset = 0  # current char in current line
-        self.pre_offset = 0  # store length of previous line when go to newline
         self.read = []  # store chars which has been read in current line
-        self.pre_read = []  # store previous read when go to newline
+        self.pre_read = []  # store previous read when go to newline to avoid go back
 
     def next_token(self):
+        """
+        recognize the next token
+        :return: the specific token as the type of token.Token or its subclasses,
+                None if it is the end of file
+        """
         c = self._getch()
 
         # consume white character
@@ -49,15 +52,17 @@ class Lexer(object):
             c = self._getch()
 
         # end of file
-        if len(c) == 0:
+        if c is None:
             return None
 
         # consume comment or divide
         if c == '/':
             c = self._getch()
             if c == '/':
-                while c not in ['\r', '\n']:
+                while c != '\n':
                     c = self._getch()
+                    if c is None:  # EOF
+                        return None
                 return self.next_token()
             elif c == '*':
                 while True:
@@ -79,7 +84,8 @@ class Lexer(object):
                 c = self._getch()
 
             self._ungetc(c)
-            if identifier[len(identifier) - 1] == '_':
+            if identifier[len(identifier) - 1] == '_':  # ended with '_' is invalid
+                self._ungetc('_')
                 self._print_error()
             else:
                 if identifier in token.TOKEN_RESERVE.keys():
@@ -159,36 +165,32 @@ class Lexer(object):
         """
         if len(self.buf) == 0:
             c = self.input.read(1)
+            if len(c) == 0:
+                return None
         else:
             c = self.buf.pop()
 
-        if c == '\n':
+        if c == '\n':  # record current state and prepare for a new line
             self.line += 1
-            self.pre_offset = self.offset
             self.pre_read = self.read
-            self.offset = 0
             self.read = []
         else:
-            self.offset += 1
             self.read.append(c)
         return c
 
     def _ungetc(self, c):
         """
-        unget a char to buffer
+        put a char that was read to buffer
         :param c: the char to unget
         :return:
         """
         self.buf.append(c)
-        if c == '\n':
+        if c == '\n':  # if unget '\n', recover to the previous state which has been recorded
             self.line -= 1
-            self.offset = self.pre_offset
             self.read = self.pre_read
             self.pre_read = []
-            self.pre_offset = 0
         else:
             self.read.pop()
-            self.offset -= 1
 
     def _print_error(self):
         """
@@ -196,14 +198,15 @@ class Lexer(object):
         if wanna print error, REMEMBER TO  unget a char IN ADVANCE
         :return:
         """
-        msg = 'Invalid token at row %d, column %d:' % (self.line, self.offset)
-        offset = self.offset
+        offset = len(self.read) + 1
+        msg = '\nInvalid token at row %d, column %d:' % (self.line, offset)
 
         # read rest chars
         c = self._getch()
-        while c != '\n':
+        while c != '\n' and c is not None:
             c = self._getch()
-        self._ungetc(c)
+        if c is not None:
+            self._ungetc(c)
 
         print msg
         print ''.join(self.read)
