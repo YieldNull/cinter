@@ -55,10 +55,14 @@ def main(argv):
 
     le = Lexer(_file)
     token = le.next_token()
+    line = 0
     while token is not None:
-        print token
+        if line != le.line:
+            line += 1
+            print '%d: %s' % (line, token)
+        else:
+            print '   %d: %s' % (line, token)
         token = le.next_token()
-
 
 if __name__ == '__main__':
     main(sys.argv)
