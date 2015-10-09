@@ -63,6 +63,7 @@ def main(argv):
         else:
             print '   %d: %s' % (line, token)
         token = le.next_token()
+    _file.close()
 
 if __name__ == '__main__':
     main(sys.argv)

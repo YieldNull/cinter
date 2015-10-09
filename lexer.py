@@ -208,6 +208,7 @@ class Lexer(object):
         if c is not None:
             self._ungetc(c)
 
+        self.input.close()
         print msg
         print ''.join(self.read)
         print ' ' * (offset - 1) + '^'
