@@ -1,6 +1,6 @@
 A CMM (C Minus Minus) Parser Written in Python
 
-附录1：CMM词法对应表
+Appendix A: lexeme to token table
 
 |Token|lexeme|
 |--------|--------|
@@ -37,10 +37,10 @@ A CMM (C Minus Minus) Parser Written in Python
 |LETTER|["a"-"z"]&#124;["A"-"Z"]
 |DIGIT|["0"-"9"]
 |ID|&lt;LETTER&gt;&#124;((&lt;LETTER&gt; &#124; &lt;DIGIT&gt; &#124; "_") * ( &lt;LETTER&gt; &#124; &lt;DIGIT&gt; ))?
-|INT_LITERAL|["1"-"9"] (&lt;DIGIT&gt;)* &#124; "0"
+|INT_LITERAL|["1"-"9"] &#40;&lt;DIGIT&gt;&#41;* &#124; "0"
 |REAL_LITERAL|&lt;INT_LITERAL&gt;("."(&lt;INT_LITERAL&gt;)+)?
 
 
-附录2：CMM词法DFA
+Appendix B: DFA states of CMM
 
 ![](srv/CMM_DFA.png)
