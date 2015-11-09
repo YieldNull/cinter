@@ -68,13 +68,12 @@ class ReservedToken(Token):
 
 TYPE = {
     'IF': 255, 'ELSE': 256, 'WHILE': 257, 'READ': 258, 'WRITE': 259,
-    'INT': 260, 'REAL': 261, 'BOOL': 262, 'TRUE': 263, 'PLUS': 264,
+    'INT': 260, 'REAL': 261, 'PLUS': 264,
     'MINUS': 265, 'TIMES': 267, 'DIVIDE': 268, 'ASSIGN': 269, 'LT': 270,
     'GT': 271, 'EQUAL': 272, 'NEQUAL': 273, 'LPAREN': 274, 'RPAREN': 275,
     'LBRACE': 276, 'RBRACE': 277, 'LBRACKET': 278, 'RBRACKET': 279,
-    'ROWCOMM': 280, 'LEFTCOMM': 281, 'RIGHTCOMM': 282, 'COMMA': 283,
-    'SEMICOLON': 284, 'LETTER': 285, 'DIGIT': 286, 'ID': 287,
-    'INT_LITERAL': 288, 'REAL_LITERAL': 289, 'FALSE': 290
+    'COMMA': 283, 'SEMICOLON': 284, 'ID': 287,
+    'INT_LITERAL': 288, 'REAL_LITERAL': 289
 }
 
 IF = ReservedToken('if', 'IF')
@@ -83,10 +82,7 @@ WHILE = ReservedToken('while', 'WHILE')
 READ = ReservedToken('read', 'READ')
 WRITE = ReservedToken('write', 'WRITE')
 INT = ReservedToken('int', 'INT')
-BOOL = ReservedToken('bool', 'BOOL')
 REAL = ReservedToken('real', 'REAL')
-RETURN = ReservedToken('true', 'TRUE')
-VOID = ReservedToken('false', 'FALSE')
 
 PLUS = Token('+', 'PLUS')
 MINUS = Token('-', 'MINUS')
@@ -107,8 +103,8 @@ COMMA = Token(',', 'COMMA')
 SEMICOLON = Token(';', 'SEMICOLON')
 
 TOKEN_RESERVE = {
-    'if': IF, 'else': ELSE, 'while': WHILE, 'read': READ, 'write': WRITE,
-    'int': INT, 'real': REAL, 'bool': BOOL, 'void': VOID, 'return': RETURN
+    'if': IF, 'else': ELSE, 'while': WHILE, 'read': READ,
+    'write': WRITE, 'int': INT, 'real': REAL
 }
 TOKEN_NON_CONF = {
     '+': PLUS, '-': MINUS, '*': TIMES, '>': GT,
