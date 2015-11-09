@@ -12,8 +12,7 @@ Here is all the tokens:
         < <>
 
     reserved:
-        if, else, while, read, write,
-        int, real, bool, true, false
+        if, else, while, read, write, int, real
 
     regexp:
         LETTER	    ::=	["a"-"z"]|["A"-"Z"]
