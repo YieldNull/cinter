@@ -34,10 +34,10 @@ class Token(object):
         """
         self.lexeme = lexeme
         self.type = TYPE[t]
-        self._type = t  # the str format token type, in order to print
+        self.cate = t  # the str format token type, in order to print
 
     def __str__(self):
-        return "<%s: '%s'>" % (self._type, self.lexeme)
+        return "<%s: '%s'>" % (self.cate, self.lexeme)
 
 
 class IntLiteral(Token):
@@ -101,7 +101,11 @@ RBRACKET = Token(']', 'RBRACKET')
 COMMA = Token(',', 'COMMA')
 SEMICOLON = Token(';', 'SEMICOLON')
 
-TOKEN_RESERVE = {
+IntLiteralToken = IntLiteral(0)
+RealLiteralToken = RealLiteral(0.0)
+IdentifierToken = Identifier(';')
+
+TOKEN_RESERVED = {
     'if': IF, 'else': ELSE, 'while': WHILE, 'read': READ,
     'write': WRITE, 'int': INT, 'real': REAL
 }

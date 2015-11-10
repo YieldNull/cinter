@@ -21,7 +21,7 @@ to record the previous line when we switch to a new line.
 """
 
 import sys
-import token
+import tokens
 
 __author__ = 'hejunjie'
 
@@ -74,7 +74,8 @@ class Lexer(object):
                         self._ungetc(after)
                 return self.next_token()
             else:
-                return token.DIVIDE
+                self._ungetc(c)
+                return tokens.DIVIDE
 
         # consume identifier
         if c.isalpha():
@@ -88,10 +89,10 @@ class Lexer(object):
                 self._ungetc('_')
                 self._print_error()
             else:
-                if identifier in token.TOKEN_RESERVE.keys():
-                    return token.TOKEN_RESERVE[identifier]
+                if identifier in tokens.TOKEN_RESERVED.keys():
+                    return tokens.TOKEN_RESERVED[identifier]
                 else:
-                    return token.Identifier(identifier)
+                    return tokens.Identifier(identifier)
 
         # consume integer or decimal
         if c.isdigit():
@@ -102,35 +103,35 @@ class Lexer(object):
                 if c.isdigit():
                     number += '.'
                     number += self._consume_int(c, True)
-                    return token.RealLiteral(float(number))
+                    return tokens.RealLiteral(float(number))
                 else:
                     self._ungetc(c)
                     self._print_error()
             else:
                 self._ungetc(c)
-                return token.IntLiteral(int(number))
+                return tokens.IntLiteral(int(number))
 
         # consume less greater than or not equal
         if c == '<':
             c = self._getch()
             if c == '>':
-                return token.NEQUAL
+                return tokens.NEQUAL
             else:
                 self._ungetc(c)
-                return token.LT
+                return tokens.LT
 
         # consume assign or equal
         if c == '=':
             c = self._getch()
             if c == '=':
-                return token.EQUAL
+                return tokens.EQUAL
             else:
                 self._ungetc(c)
-                return token.ASSIGN
+                return tokens.ASSIGN
 
         # consume non conflict character
-        if c in token.TOKEN_NON_CONF.keys():
-            return token.TOKEN_NON_CONF[c]
+        if c in tokens.TOKEN_NON_CONF.keys():
+            return tokens.TOKEN_NON_CONF[c]
 
         # not match above, encounter error
         self._ungetc(c)
@@ -192,15 +193,7 @@ class Lexer(object):
         else:
             self.read.pop()
 
-    def _print_error(self):
-        """
-        print invalid token message
-        if wanna print error, REMEMBER TO  unget a char IN ADVANCE
-        :return:
-        """
-        offset = len(self.read) + 1
-        msg = '\nInvalid token at row %d, column %d:' % (self.line, offset)
-
+    def read_line_rest(self):
         # read rest chars
         c = self._getch()
         while c != '\n' and c is not None:
@@ -209,6 +202,16 @@ class Lexer(object):
             self._ungetc(c)
 
         self.input.close()
+
+    def _print_error(self):
+        """
+        print invalid token message
+        if wanna print error, REMEMBER TO  unget a char IN ADVANCE
+        :return:
+        """
+        offset = len(self.read) + 1
+        msg = '\nInvalid token at row %d, column %d:' % (self.line, offset)
+        self.read_line_rest()
         print msg
         print ''.join(self.read)
         print ' ' * (offset - 1) + '^'
