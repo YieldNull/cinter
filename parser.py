@@ -7,6 +7,7 @@ create on '10/5/15 10:36 PM'
 import sys
 import StringIO
 from tokens import *
+from nodes import *
 from lexer import Lexer
 
 __author__ = 'hejunjie'
@@ -51,9 +52,12 @@ class Parser(object):
         self.ahead = None
         self.buff = []
         self.current = 0  # print token controller
+        self.tree = NodeTree()
 
     def parse(self):
-        self._parse_stmts(False)
+        stmts = self._parse_stmts(False)
+        self.tree.append(stmts)
+        self.tree.gen()
 
     def _print_lexer(self):
         if self.lexer.line != self.current:
@@ -104,27 +108,29 @@ class Parser(object):
         (ifStmt | whileStmt | readStmt | writeStmt | assignStmt | declareStmt)+
         :return:
         """
+        l = []
         self._get()
         while self.ahead:
             t = self.ahead
             self._unget()
             if t == IF:
-                self._parse_stmt_if()
+                l.append(self._parse_stmt_if())
             elif t == WHILE:
-                self._parse_stmt_while()
+                l.append(self._parse_stmt_while())
             elif t == READ:
-                self._parse_stmt_read()
+                l.append(self._parse_stmt_read())
             elif t == WRITE:
-                self._parse_stmt_write()
+                l.append(self._parse_stmt_write())
             elif isinstance(t, Identifier):
-                self._parse_stmt_assign()
+                l.append(self._parse_stmt_assign())
             elif t == INT or t == REAL:
-                self._parse_stmt_declare()
+                l.append(self._parse_stmt_declare())
             elif not match:
                 self._print_error()
             else:
                 break
             self._get()
+        return StmtsNode(l)
 
     def _parse_stmt_if(self):
         """
@@ -134,17 +140,19 @@ class Parser(object):
         """
         self._expect(IF)
         self._expect(LPAREN)
-        self._parse_cond()
+        cond = self._parse_cond()
         self._expect(RPAREN)
         self._expect(LBRACE)
-        self._parse_stmts()
+        stmts = self._parse_stmts()
+        stmts2 = None
         self._expect(RBRACE)
         if self._match(ELSE):
             self._expect(LBRACE)
-            self._parse_stmts()
+            stmts2 = self._parse_stmts()
             self._expect(RBRACE)
         else:
             self._unget()
+        return IfNode(cond, stmts, stmts2)
 
     def _parse_stmt_while(self):
         """
@@ -154,11 +162,12 @@ class Parser(object):
         """
         self._expect(WHILE)
         self._expect(LPAREN)
-        self._parse_cond()
+        cond = self._parse_cond()
         self._expect(RPAREN)
         self._expect(LBRACE)
-        self._parse_stmts()
+        stmts = self._parse_stmts()
         self._expect(RBRACE)
+        return WhileNode(cond, stmts)
 
     def _parse_stmt_read(self):
         """
@@ -169,8 +178,10 @@ class Parser(object):
         self._expect(READ)
         self._expect(LPAREN)
         self._expect(IdentifierToken)
+        ident = self.ahead
         self._expect(RPAREN)
         self._expect(SEMICOLON)
+        return ReadNode(IdNode(ident))
 
     def _parse_stmt_write(self):
         """
@@ -180,9 +191,10 @@ class Parser(object):
         """
         self._expect(WRITE)
         self._expect(LPAREN)
-        self._parse_expr()
+        expr = self._parse_expr()
         self._expect(RPAREN)
         self._expect(SEMICOLON)
+        return WriteNode(expr)
 
     def _parse_stmt_assign(self):
         """
@@ -191,12 +203,15 @@ class Parser(object):
         :return:
         """
         self._expect(IdentifierToken)
+        t = self.ahead
+        arr = None
         if not self._match(ASSIGN):
             self._unget()
-            self._parse_arr()
+            arr = self._parse_arr()
             self._expect(ASSIGN)
-        self._parse_expr()
+        expr = self._parse_expr()
         self._expect(SEMICOLON)
+        return AssignNode(IdNode(t), arr, expr)
 
     def _parse_stmt_declare(self):
         """
@@ -204,52 +219,68 @@ class Parser(object):
         (<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
         :return:
         """
+        l = []
         self._expect((INT, REAL))
-        self._match(IdentifierToken)
-        self._parse_arr(True)
+        t = self.ahead
+        self._expect(IdentifierToken)
+        _id = IdNode(self.ahead, t.type)
+        arr = self._parse_arr(True)  # may be None
+        l.append((_id, arr))
         while True:
             if self._match(COMMA):
                 self._expect(IdentifierToken)
-                self._parse_arr(True)
+                i = self.ahead
+                a = self._parse_arr(True)  # may be None
             else:
                 self._unget()
                 break
+            l.append((IdNode(i, t.type), a))
         self._expect(SEMICOLON)
+        return DeclareNode(l)
 
     def _parse_cond(self):
         """
         condition	::=expression compOp expression
         :return:
         """
-        self._parse_expr()
-        self._parse_op_comp()
-        self._parse_expr()
+        expr1 = self._parse_expr()
+        comp = self._parse_op_comp()
+        expr2 = self._parse_expr()
+        return ConditionNode(expr1, comp, expr2)
 
     def _parse_expr(self):
         """
         expression  ::=	term (addOp term)*
         :return:
         """
-        self._parse_term()
+        term = self._parse_term()
+        l = []
         while True:
-            if self._parse_op_add(True):
-                self._parse_term()
+            add = self._parse_op_add(True)
+            if add:
+                t = self._parse_term()
             else:
                 self._unget()
                 break
+            l.append((add, t))
+        return ExprNode(term, l)
 
     def _parse_term(self):
         """
         term    ::=	factor (mulOp factor)*
         :return:
         """
-        self._parse_factor()
+        l = []
+        factor = self._parse_factor()
         while True:
-            if self._parse_op_mul(True):
-                self._parse_factor()
+            m = self._parse_op_mul(True)
+            if m:
+                f = self._parse_factor()
             else:
                 self._unget()
                 break
+            l.append((m, f))
+        return TermNode(factor, l)
 
     def _parse_factor(self):
         """
@@ -258,11 +289,16 @@ class Parser(object):
         :return:
         """
         self._expect((RealLiteralToken, IntLiteralToken, IdentifierToken, LPAREN))
+        t = self.ahead
         if self.ahead.type == LPAREN.type:
-            self._parse_expr()
+            expr = self._parse_expr()
             self._expect(RPAREN)
+            return FactorNode(expr=expr)
         elif self.ahead.type == IdentifierToken.type:
-            self._parse_arr(True)
+            arr = self._parse_arr(True)
+            return FactorNode(_id=IdNode(t), arr=arr)
+        else:
+            return FactorNode(literal=LiteralNode(t))
 
     def _parse_arr(self, match=False):
         """
@@ -272,13 +308,22 @@ class Parser(object):
         if match:
             if self._match(LBRACKET):
                 self._expect((IntLiteralToken, IdentifierToken))
+                t = self.ahead
                 self._expect(RBRACKET)
             else:
                 self._unget()
+                return None
+
         else:
             self._expect(LBRACKET)
             self._expect((IntLiteralToken, IdentifierToken))
+            t = self.ahead
             self._expect(RBRACKET)
+
+        if t == IntLiteralToken:
+            return ArrayNode(literal=IntLiteral(t))
+        else:
+            return ArrayNode(id=IdNode(t))
 
     def _parse_op_comp(self):
         """
@@ -286,6 +331,7 @@ class Parser(object):
         :return:
         """
         self._expect((LT, GT, EQUAL, NEQUAL))
+        return CompNode(LeafNode(self.ahead))
 
     def _parse_op_add(self, match=False):
         """
@@ -294,7 +340,8 @@ class Parser(object):
         :return:
         """
         if match:
-            return self._match((PLUS, MINUS))
+            if self._match((PLUS, MINUS)):
+                return AddNode(LeafNode(self.ahead))
         else:
             self._expect((PLUS, MINUS))
 
@@ -305,7 +352,8 @@ class Parser(object):
         :return:
         """
         if match:
-            return self._match((TIMES, DIVIDE))
+            if self._match((TIMES, DIVIDE)):
+                return MulNode(LeafNode(self.ahead))
         else:
             self._expect((TIMES, DIVIDE))
 
