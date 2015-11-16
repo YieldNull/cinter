@@ -5,66 +5,38 @@
 create on '10/5/15 10:36 PM'
 """
 import sys
-import StringIO
 from tokens import *
 from nodes import *
-from lexer import Lexer
+from lexer import Lexer, InValidTokenError
 
 __author__ = 'hejunjie'
 
-# the file-like object
-_file = None
-
-
-def _read_keyboard():
-    """
-    read source from keyboard
-    :return:
-    """
-    global _file
-    _file = StringIO.StringIO()
-    while True:
-        try:
-            line = raw_input()
-        except EOFError:
-            break
-        # add '\n' to each line
-        _file.write(line + '\n')
-
-    content = _file.getvalue()
-    _file.close()
-    _file = StringIO.StringIO(content)
-
-
-def _read_file(path):
-    """
-    read source from file
-    :param path: path to file
-    :return:
-    """
-    global _file
-    _file = open(path, 'rU')
-
 
 class Parser(object):
-    def __init__(self):
-        self.lexer = Lexer(_file)
+    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr):
+        self.stdin = stdin
+        self.stdout = stdout
+        self.stderr = stderr
+        self.lexer = Lexer(stdin, stdout=stdout, stderr=stderr)
         self.ahead = None
         self.buff = []
         self.current = 0  # print token controller
-        self.tree = NodeTree()
 
     def parse(self):
-        stmts = self._parse_stmts(False)
-        self.tree.append(stmts)
-        self.tree.gen()
+        try:
+            stmts = self._parse_stmts(False)
+        except InValidTokenError:
+            return None
+        self.stdout.write('%s\n' % stmts.gen())
+        self.stdin.close()
+        return stmts
 
     def _print_lexer(self):
         if self.lexer.line != self.current:
             current = self.lexer.line
-            print '%d: %s' % (current, self.ahead)
+            self.stdout.write('%s\n' % '%d: %s' % (current, self.ahead))
         else:
-            print '   %d: %s' % (self.current, self.ahead)
+            self.stdout.write('%s\n' % '   %d: %s' % (self.current, self.ahead))
 
     def _print_error(self, expect=None):
         offset = len(self.lexer.read) + 1
@@ -72,14 +44,15 @@ class Parser(object):
         msg = '\nInvalid token near row %d, column %d:' % (self.lexer.line, offset)
         self.lexer.read_line_rest()
 
-        print msg
-        print ''.join(self.lexer.read)
-        print ' ' * (offset - 1) + '^'
+        self.stderr.write('%s\n' % msg)
+        self.stderr.write('%s\n' % ''.join(self.lexer.read))
+        self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
         if isinstance(expect, Token):
             expect = (expect,)
         if expect:
-            print 'Expected %s' % (' or '.join([t.cate for t in expect]))
-        sys.exit(0)
+            self.stderr.write('%s\n' % 'Expected %s' % (' or '.join([t.cate for t in expect])))
+        # sys.exit(0)
+        raise InValidTokenError()
 
     def _get(self):
         if len(self.buff) == 0:
@@ -113,17 +86,17 @@ class Parser(object):
         while self.ahead:
             t = self.ahead
             self._unget()
-            if t == IF:
+            if t == Token_IF:
                 l.append(self._parse_stmt_if())
-            elif t == WHILE:
+            elif t == Token_WHILE:
                 l.append(self._parse_stmt_while())
-            elif t == READ:
+            elif t == Token_READ:
                 l.append(self._parse_stmt_read())
-            elif t == WRITE:
+            elif t == Token_WRITE:
                 l.append(self._parse_stmt_write())
             elif isinstance(t, Identifier):
                 l.append(self._parse_stmt_assign())
-            elif t == INT or t == REAL:
+            elif t == Token_INT or t == Token_REAL:
                 l.append(self._parse_stmt_declare())
             elif not match:
                 self._print_error()
@@ -138,21 +111,21 @@ class Parser(object):
         <IF> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE> ( <ELSE> <LBRACE> statements <RBRACE> )?
         :return:
         """
-        self._expect(IF)
-        self._expect(LPAREN)
+        self._expect(Token_IF)
+        self._expect(Token_LPAREN)
         cond = self._parse_cond()
-        self._expect(RPAREN)
-        self._expect(LBRACE)
+        self._expect(Token_RPAREN)
+        self._expect(Token_LBRACE)
         stmts = self._parse_stmts()
         stmts2 = None
-        self._expect(RBRACE)
-        if self._match(ELSE):
-            self._expect(LBRACE)
+        self._expect(Token_RBRACE)
+        if self._match(Token_ELSE):
+            self._expect(Token_LBRACE)
             stmts2 = self._parse_stmts()
-            self._expect(RBRACE)
+            self._expect(Token_RBRACE)
         else:
             self._unget()
-        return IfNode(cond, stmts, stmts2)
+        return IfStmtNode(cond, stmts, stmts2)
 
     def _parse_stmt_while(self):
         """
@@ -160,14 +133,14 @@ class Parser(object):
         <WHILE> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE>
         :return:
         """
-        self._expect(WHILE)
-        self._expect(LPAREN)
+        self._expect(Token_WHILE)
+        self._expect(Token_LPAREN)
         cond = self._parse_cond()
-        self._expect(RPAREN)
-        self._expect(LBRACE)
+        self._expect(Token_RPAREN)
+        self._expect(Token_LBRACE)
         stmts = self._parse_stmts()
-        self._expect(RBRACE)
-        return WhileNode(cond, stmts)
+        self._expect(Token_RBRACE)
+        return WhileStmtNode(cond, stmts)
 
     def _parse_stmt_read(self):
         """
@@ -175,13 +148,13 @@ class Parser(object):
         <READ> <LPAREN> <ID> <RPAREN> <SEMICOLON>
         :return:
         """
-        self._expect(READ)
-        self._expect(LPAREN)
-        self._expect(IdentifierToken)
+        self._expect(Token_READ)
+        self._expect(Token_LPAREN)
+        self._expect(Token_Identifier)
         ident = self.ahead
-        self._expect(RPAREN)
-        self._expect(SEMICOLON)
-        return ReadNode(IdNode(ident))
+        self._expect(Token_RPAREN)
+        self._expect(Token_SEMICOLON)
+        return ReadStmtNode(IdNode(ident))
 
     def _parse_stmt_write(self):
         """
@@ -189,12 +162,12 @@ class Parser(object):
         <WRITE> <LPAREN> expression <RPAREN> <SEMICOLON>
         :return:
         """
-        self._expect(WRITE)
-        self._expect(LPAREN)
+        self._expect(Token_WRITE)
+        self._expect(Token_LPAREN)
         expr = self._parse_expr()
-        self._expect(RPAREN)
-        self._expect(SEMICOLON)
-        return WriteNode(expr)
+        self._expect(Token_RPAREN)
+        self._expect(Token_SEMICOLON)
+        return WriteStmtNode(expr)
 
     def _parse_stmt_assign(self):
         """
@@ -202,16 +175,16 @@ class Parser(object):
         <ID> [array] <ASSIGN> expression <SEMICOLON>
         :return:
         """
-        self._expect(IdentifierToken)
+        self._expect(Token_Identifier)
         t = self.ahead
         arr = None
-        if not self._match(ASSIGN):
+        if not self._match(Token_ASSIGN):
             self._unget()
             arr = self._parse_arr()
-            self._expect(ASSIGN)
+            self._expect(Token_ASSIGN)
         expr = self._parse_expr()
-        self._expect(SEMICOLON)
-        return AssignNode(IdNode(t), arr, expr)
+        self._expect(Token_SEMICOLON)
+        return AssignStmtNode(IdNode(t), expr, arr)
 
     def _parse_stmt_declare(self):
         """
@@ -220,23 +193,23 @@ class Parser(object):
         :return:
         """
         l = []
-        self._expect((INT, REAL))
+        self._expect((Token_INT, Token_REAL))
         t = self.ahead
-        self._expect(IdentifierToken)
+        self._expect(Token_Identifier)
         _id = IdNode(self.ahead, t.type)
         arr = self._parse_arr(True)  # may be None
         l.append((_id, arr))
         while True:
-            if self._match(COMMA):
-                self._expect(IdentifierToken)
+            if self._match(Token_COMMA):
+                self._expect(Token_Identifier)
                 i = self.ahead
                 a = self._parse_arr(True)  # may be None
             else:
                 self._unget()
                 break
             l.append((IdNode(i, t.type), a))
-        self._expect(SEMICOLON)
-        return DeclareNode(l)
+        self._expect(Token_SEMICOLON)
+        return DeclareStmtNode(LiteralNode(t), l)
 
     def _parse_cond(self):
         """
@@ -288,13 +261,13 @@ class Parser(object):
         <REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
         :return:
         """
-        self._expect((RealLiteralToken, IntLiteralToken, IdentifierToken, LPAREN))
+        self._expect((Token_RealLiteral, Token_IntLiteral, Token_Identifier, Token_LPAREN))
         t = self.ahead
-        if self.ahead.type == LPAREN.type:
+        if self.ahead.type == Token_LPAREN.type:
             expr = self._parse_expr()
-            self._expect(RPAREN)
+            self._expect(Token_RPAREN)
             return FactorNode(expr=expr)
-        elif self.ahead.type == IdentifierToken.type:
+        elif self.ahead.type == Token_Identifier.type:
             arr = self._parse_arr(True)
             return FactorNode(_id=IdNode(t), arr=arr)
         else:
@@ -306,31 +279,31 @@ class Parser(object):
         :return:
         """
         if match:
-            if self._match(LBRACKET):
-                self._expect((IntLiteralToken, IdentifierToken))
+            if self._match(Token_LBRACKET):
+                self._expect((Token_IntLiteral, Token_Identifier))
                 t = self.ahead
-                self._expect(RBRACKET)
+                self._expect(Token_RBRACKET)
             else:
                 self._unget()
                 return None
 
         else:
-            self._expect(LBRACKET)
-            self._expect((IntLiteralToken, IdentifierToken))
+            self._expect(Token_LBRACKET)
+            self._expect((Token_IntLiteral, Token_Identifier))
             t = self.ahead
-            self._expect(RBRACKET)
+            self._expect(Token_RBRACKET)
 
-        if t == IntLiteralToken:
+        if t == Token_IntLiteral:
             return ArrayNode(literal=IntLiteral(t))
         else:
-            return ArrayNode(id=IdNode(t))
+            return ArrayNode(_id=IdNode(t))
 
     def _parse_op_comp(self):
         """
         compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
         :return:
         """
-        self._expect((LT, GT, EQUAL, NEQUAL))
+        self._expect((Token_LT, Token_GT, Token_EQUAL, Token_NEQUAL))
         return CompNode(LeafNode(self.ahead))
 
     def _parse_op_add(self, match=False):
@@ -340,10 +313,10 @@ class Parser(object):
         :return:
         """
         if match:
-            if self._match((PLUS, MINUS)):
+            if self._match((Token_PLUS, Token_MINUS)):
                 return AddNode(LeafNode(self.ahead))
         else:
-            self._expect((PLUS, MINUS))
+            self._expect((Token_PLUS, Token_MINUS))
 
     def _parse_op_mul(self, match=False):
         """
@@ -352,10 +325,38 @@ class Parser(object):
         :return:
         """
         if match:
-            if self._match((TIMES, DIVIDE)):
+            if self._match((Token_TIMES, Token_DIVIDE)):
                 return MulNode(LeafNode(self.ahead))
         else:
-            self._expect((TIMES, DIVIDE))
+            self._expect((Token_TIMES, Token_DIVIDE))
+
+
+def _read_keyboard():
+    """
+    read source from keyboard
+    :return:
+    """
+    fileobj = StringIO.StringIO()
+    while True:
+        try:
+            line = raw_input()
+        except EOFError:
+            break
+        # add '\n' to each line
+        fileobj.write(line + '\n')
+
+    content = fileobj.getvalue()
+    fileobj.close()
+    return StringIO.StringIO(content)
+
+
+def _read_file(path):
+    """
+    read source from file
+    :param path: path to file
+    :return:
+    """
+    return open(path, 'rU')
 
 
 if __name__ == '__main__':
@@ -364,9 +365,8 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if len(sys.argv) == 1:
-        _read_keyboard()
+        stdin = _read_keyboard()
     else:
-        _read_file(sys.argv[1])
-    p = Parser()
+        stdin = _read_file(sys.argv[1])
+    p = Parser(stdin)
     p.parse()
-    _file.close()

@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../assets/images/copy.png</file>
+        <file>../assets/images/cut.png</file>
+        <file>../assets/images/new.png</file>
+        <file>../assets/images/open.png</file>
+        <file>../assets/images/paste.png</file>
+        <file>../assets/images/save.png</file>
+        <file>../assets/images/start.png</file>
+        <file>../assets/images/build.png</file>
+        <file>../assets/images/qtcreator.png</file>
+        <file>../assets/images/undo.png</file>
+        <file>../assets/images/redo.png</file>
+    </qresource>
+</RCC>

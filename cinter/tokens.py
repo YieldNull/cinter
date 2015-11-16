@@ -75,42 +75,43 @@ TYPE = {
     'INT_LITERAL': 288, 'REAL_LITERAL': 289
 }
 
-IF = ReservedToken('if', 'IF')
-ELSE = ReservedToken('else', 'ELSE')
-WHILE = ReservedToken('while', 'WHILE')
-READ = ReservedToken('read', 'READ')
-WRITE = ReservedToken('write', 'WRITE')
-INT = ReservedToken('int', 'INT')
-REAL = ReservedToken('real', 'REAL')
+Token_IF = ReservedToken('if', 'IF')
+Token_ELSE = ReservedToken('else', 'ELSE')
+Token_WHILE = ReservedToken('while', 'WHILE')
+Token_READ = ReservedToken('read', 'READ')
+Token_WRITE = ReservedToken('write', 'WRITE')
+Token_INT = ReservedToken('int', 'INT')
+Token_REAL = ReservedToken('real', 'REAL')
 
-PLUS = Token('+', 'PLUS')
-MINUS = Token('-', 'MINUS')
-TIMES = Token('*', 'TIMES')
-DIVIDE = Token('/', 'DIVIDE')
-ASSIGN = Token('=', 'ASSIGN')
-GT = Token('>', 'GT')
-LT = Token('<', 'LT')
-NEQUAL = Token('<>', 'NEQUAL')
-EQUAL = Token('==', 'EQUAL')
-LPAREN = Token('(', 'LPAREN')
-RPAREN = Token(')', 'RPAREN')
-LBRACE = Token('{', 'LBRACE')
-RBRACE = Token('}', 'RBRACE')
-LBRACKET = Token('[', 'LBRACKET')
-RBRACKET = Token(']', 'RBRACKET')
-COMMA = Token(',', 'COMMA')
-SEMICOLON = Token(';', 'SEMICOLON')
+Token_PLUS = Token('+', 'PLUS')
+Token_MINUS = Token('-', 'MINUS')
+Token_TIMES = Token('*', 'TIMES')
+Token_DIVIDE = Token('/', 'DIVIDE')
+Token_ASSIGN = Token('=', 'ASSIGN')
+Token_GT = Token('>', 'GT')
+Token_LT = Token('<', 'LT')
+Token_NEQUAL = Token('<>', 'NEQUAL')
+Token_EQUAL = Token('==', 'EQUAL')
+Token_LPAREN = Token('(', 'LPAREN')
+Token_RPAREN = Token(')', 'RPAREN')
+Token_LBRACE = Token('{', 'LBRACE')
+Token_RBRACE = Token('}', 'RBRACE')
+Token_LBRACKET = Token('[', 'LBRACKET')
+Token_RBRACKET = Token(']', 'RBRACKET')
+Token_COMMA = Token(',', 'COMMA')
+Token_SEMICOLON = Token(';', 'SEMICOLON')
 
-IntLiteralToken = IntLiteral(0)
-RealLiteralToken = RealLiteral(0.0)
-IdentifierToken = Identifier(';')
+# just used for type matching in parser
+Token_IntLiteral = IntLiteral(0)
+Token_RealLiteral = RealLiteral(0.0)
+Token_Identifier = Identifier(';')
 
 TOKEN_RESERVED = {
-    'if': IF, 'else': ELSE, 'while': WHILE, 'read': READ,
-    'write': WRITE, 'int': INT, 'real': REAL
+    'if': Token_IF, 'else': Token_ELSE, 'while': Token_WHILE, 'read': Token_READ,
+    'write': Token_WRITE, 'int': Token_INT, 'real': Token_REAL
 }
 TOKEN_NON_CONF = {
-    '+': PLUS, '-': MINUS, '*': TIMES, '>': GT,
-    '(': LPAREN, ')': RPAREN, '{': LBRACE, '}': RBRACE,
-    '[': LBRACKET, ']': RBRACKET, ',': COMMA, ';': SEMICOLON,
+    '+': Token_PLUS, '-': Token_MINUS, '*': Token_TIMES, '>': Token_GT,
+    '(': Token_LPAREN, ')': Token_RPAREN, '{': Token_LBRACE, '}': Token_RBRACE,
+    '[': Token_LBRACKET, ']': Token_RBRACKET, ',': Token_COMMA, ';': Token_SEMICOLON,
 }

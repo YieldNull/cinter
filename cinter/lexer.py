@@ -31,9 +31,23 @@ __author__ = 'hejunjie'
 _IGNORE = ['\t', '\n', ' ']
 
 
+class EOF(object):
+    def isdigit(self):
+        return False
+
+    def isalpha(self):
+        return False
+
+
+class InValidTokenError(Exception):
+    pass
+
+
 class Lexer(object):
-    def __init__(self, source):
-        self.input = source
+    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr):
+        self.input = stdin
+        self.stdout = stdout
+        self.stderr = stderr
         self.buf = []  # read buffer
         self.line = 1  # current line
         self.read = []  # store chars which has been read in current line
@@ -52,7 +66,7 @@ class Lexer(object):
             c = self._getch()
 
         # end of file
-        if c is None:
+        if isinstance(c, EOF):
             return None
 
         # consume comment or divide
@@ -61,8 +75,6 @@ class Lexer(object):
             if c == '/':
                 while c != '\n':
                     c = self._getch()
-                    if c is None:  # EOF
-                        return None
                 return self.next_token()
             elif c == '*':
                 while True:
@@ -75,7 +87,7 @@ class Lexer(object):
                 return self.next_token()
             else:
                 self._ungetc(c)
-                return tokens.DIVIDE
+                return tokens.Token_DIVIDE
 
         # consume identifier
         if c.isalpha():
@@ -115,19 +127,19 @@ class Lexer(object):
         if c == '<':
             c = self._getch()
             if c == '>':
-                return tokens.NEQUAL
+                return tokens.Token_NEQUAL
             else:
                 self._ungetc(c)
-                return tokens.LT
+                return tokens.Token_LT
 
         # consume assign or equal
         if c == '=':
             c = self._getch()
             if c == '=':
-                return tokens.EQUAL
+                return tokens.Token_EQUAL
             else:
                 self._ungetc(c)
-                return tokens.ASSIGN
+                return tokens.Token_ASSIGN
 
         # consume non conflict character
         if c in tokens.TOKEN_NON_CONF.keys():
@@ -167,7 +179,7 @@ class Lexer(object):
         if len(self.buf) == 0:
             c = self.input.read(1)
             if len(c) == 0:
-                return None
+                return EOF()
         else:
             c = self.buf.pop()
 
@@ -175,7 +187,7 @@ class Lexer(object):
             self.line += 1
             self.pre_read = self.read
             self.read = []
-        else:
+        elif not isinstance(c, EOF):
             self.read.append(c)
         return c
 
@@ -190,15 +202,15 @@ class Lexer(object):
             self.line -= 1
             self.read = self.pre_read
             self.pre_read = []
-        else:
+        elif len(self.read) > 0:
             self.read.pop()
 
     def read_line_rest(self):
         # read rest chars
         c = self._getch()
-        while c != '\n' and c is not None:
+        while c != '\n' and not isinstance(c, EOF):
             c = self._getch()
-        if c is not None:
+        if not isinstance(c, EOF):
             self._ungetc(c)
 
         self.input.close()
@@ -212,7 +224,8 @@ class Lexer(object):
         offset = len(self.read) + 1
         msg = '\nInvalid token at row %d, column %d:' % (self.line, offset)
         self.read_line_rest()
-        print msg
-        print ''.join(self.read)
-        print ' ' * (offset - 1) + '^'
-        sys.exit(0)
+        self.stderr.write('%s\n' % msg)
+        self.stderr.write('%s\n' % ''.join(self.read))
+        self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
+        # sys.exit(0)
+        raise InValidTokenError()
