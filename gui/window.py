@@ -7,7 +7,7 @@ from cinter.parser import Parser
 from gui.editor import CodeEditor
 from ui_window import Ui_MainWindow
 from PyQt5 import QtWidgets
-from PyQt5.QtGui import QTextCursor
+from PyQt5.QtGui import QTextCursor, QColor
 from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
                           Qt, QFile, QModelIndex, QVariant, QAbstractItemModel)
 from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
@@ -16,12 +16,26 @@ from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
 __author__ = 'hejunjie'
 
 
-class OutLog(object):
+class Console(object):
+    """
+    The stream-like-object to redirect stream to Qt editor document
+    """
+
     def __init__(self, editor, color=None):
+        """
+        :param editor: QTextBrowser or QPlainTextEditor etc.
+        :param color: text color
+        :return:
+        """
         self.editor = editor
         self.color = color
 
     def write(self, content):
+        """
+        Append to editor's document
+        :param content:
+        :return:
+        """
         if self.color:
             self.editor.setTextColor(self.color)
         self.editor.moveCursor(QTextCursor.End)
@@ -32,11 +46,20 @@ class OutLog(object):
 
 
 class TreeModel(QAbstractItemModel):
+    """
+    The tree model to show token tree or syntax tree in QTreeView
+    Functions are all overrode
+    """
+
     def __init__(self, rootItem, parent=None):
         super(TreeModel, self).__init__(parent)
         self.rootItem = rootItem
 
     def index(self, row, column, parent=None, *args, **kwargs):
+        """
+        Returns the index of the item in the model
+        specified by the given row, column and parent index.
+        """
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
 
@@ -51,6 +74,10 @@ class TreeModel(QAbstractItemModel):
             return QModelIndex()
 
     def parent(self, index=None):
+        """
+        Returns the parent of the model item with the given index.
+        If the item has no parent, an invalid QModelIndex is returned.
+        """
         if not index.isValid():
             return QModelIndex()
 
@@ -62,6 +89,11 @@ class TreeModel(QAbstractItemModel):
         return self.createIndex(parent.indexInParent(), 0, parent)
 
     def rowCount(self, parent=None, *args, **kwargs):
+        """
+        Returns the number of rows under the given parent.
+        When the parent is valid it means that
+        rowCount is returning the number of children of parent.
+        """
         if parent.column() > 0:
             return 0
 
@@ -72,9 +104,16 @@ class TreeModel(QAbstractItemModel):
         return parentItem.childCount()
 
     def columnCount(self, parent=None, *args, **kwargs):
+        """
+        Returns the number of columns for the children of the given parent.
+        """
         return 1
 
     def data(self, index, role=None):
+        """
+        Returns the data stored under the
+        given role for the item referred to by the index.
+        """
         if not index.isValid():
             return QVariant()
         if role != Qt.DisplayRole:
@@ -91,15 +130,11 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
 
         # Left Browser tabs
-        self.tabFiles = self.ui.tabWidgetBrowser.widget(0)
-        self.tabToken = self.ui.tabWidgetBrowser.widget(1)
-        self.tabSyntax = self.ui.tabWidgetBrowser.widget(2)
         self.ui.tabWidgetBrowser.removeTab(1)
-
         self.ui.tabWidgetBrowser.removeTab(1)
         self.ui.tabWidgetBrowser.setTabsClosable(True)
         self.ui.tabWidgetBrowser.tabCloseRequested.connect(self.closeBrowserTab)
-        self.ui.tabWidgetBrowser.tabBarDoubleClicked.connect(self.maximizeBrowserTab)
+        self.ui.tabWidgetBrowser.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetBrowser))
 
         # File tree
         self.fileTreeModel = QFileSystemModel(self)
@@ -124,19 +159,30 @@ class MainWindow(QMainWindow):
         self.currentEditor.setFocus()  # set focus
         self.ui.tabWidgetEditor.tabCloseRequested.connect(self.closeEditorTab)
         self.ui.tabWidgetEditor.tabBarClicked.connect(self.switchEditorTab)
-        self.ui.tabWidgetEditor.tabBarDoubleClicked.connect(self.maximizeEditorTab)
+        self.ui.tabWidgetEditor.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetEditor))
 
-        # Bottom output panel
+        # Bottom output tabs
+        self.TextConsole = None
+        self.TextOutput = None
+        self.TextError = None
+        self.ConsoleTypeConsole = 1
+        self.ConsoleTypeOutput = 2
+        self.ConsoleTypeError = 3
+
         self.ui.tabWidgetOutput.hide()
-        self.ui.tabWidgetOutput.setTabsClosable(True)
         self.ui.tabWidgetOutput.tabCloseRequested.connect(self.closeOutputTab)
-        self.ui.tabWidgetOutput.tabBarDoubleClicked.connect(self.maximizeOutputTab)
+        self.ui.tabWidgetOutput.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetOutput))
 
-        # Previous opened tabs
+        # Previous opened tabs,for maximizing
         self.preOpenedTabs = None
 
         # Initial size of inner splitter
         self.ui.splitterInner.setSizes([180, 459 * 2 - 180])
+
+        # Bottom button
+        self.ui.pushButtonConsole.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeConsole))
+        self.ui.pushButtonOutput.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeOutput))
+        self.ui.pushButtonError.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeError))
 
         # Menu "File"
         self.ui.actionOpen.triggered.connect(self.openFile)
@@ -149,30 +195,48 @@ class MainWindow(QMainWindow):
         self.connectMenuEditSlots()
 
         # Menu "View"
-        self.ui.menuView.triggered.connect(self.menuViewHandler)
+        self.ui.menuView.triggered.connect(self.manageMenuView)
         self.ui.actionAboutQt.triggered.connect(QApplication.aboutQt)
 
-        self.ui.actionRunParser.triggered.connect(self.testParser)
+        self.ui.actionRunParser.triggered.connect(self.runParser)
 
-    def testParser(self):
+    def runParser(self):
+        """
+        Run parser and present result on self.ui.tabSyntax Tree
+        :return:
+        """
         if not self.saveFile():
             return
 
+        # Clear previous output and show the ouput panel
+        self.ui.textBrowser.clear()
+        self.ui.tabWidgetOutput.show()
+        if self.ui.treeViewSyntax.model():
+            self.ui.treeViewSyntax.model().clear()
+
+        # Begin parse
         stdin = open(self.currentEditor.file, 'r')
-        stdout = OutLog(self.ui.textBrowserConsole)
-        p = Parser(stdin, stdout=stdout, stderr=stdout)
+        stdout = Console(self.ui.textBrowser)
+        stderr = Console(self.ui.textBrowser, QColor().red())
+        p = Parser(stdin, stdout=stdout, stderr=stderr, parser_mode=True)
         rootNode = p.parse()
 
-        self.ui.tabWidgetOutput.show()
-        self.ui.textBrowserConsole.clear()
+        # Show parse result in a treeView
+        if not rootNode:
+            self.ui.tabWidgetOutput.setTabText(0, 'Error')
+            self.TextError = self.ui.textBrowser.document().toPlainText()
+            return
+        else:
+            self.ui.tabWidgetOutput.setTabText(0, 'Output')
+            self.TextOutput = self.ui.textBrowser.document().toPlainText()
 
         model = TreeModel(rootNode)
         self.ui.treeViewSyntax.setModel(model)
-        self.ui.treeViewSyntax.setStyleSheet('QListView::item{background-color: red;}')
         self.ui.treeViewSyntax.setAnimated(True)
 
-        self.ui.tabWidgetBrowser.addTab(self.tabSyntax, 'Syntax')
-        index = self.ui.tabWidgetBrowser.indexOf(self.tabSyntax)
+        # show the Syntax tab
+        self.ui.tabWidgetBrowser.addTab(self.ui.tabSyntax, 'Syntax')
+        index = self.ui.tabWidgetBrowser.indexOf(self.ui.tabSyntax)
         self.ui.tabWidgetBrowser.setCurrentIndex(index)
 
     def closeEvent(self, event):
@@ -278,7 +342,7 @@ class MainWindow(QMainWindow):
         self.ui.tabWidgetEditor.removeTab(index)
         self.openedEditorTabs.pop(index)
         self.openedEditors.pop(index)
-        self.switchEditorTab(0)
+        self.switchEditorTab(0)  # choose the beginning tab as current active
         if len(self.openedEditorTabs) == 1:
             self.ui.tabWidgetEditor.setTabsClosable(False)
 
@@ -289,14 +353,17 @@ class MainWindow(QMainWindow):
         :param index:
         :return:
         """
+        # make menu "View" corresponding
         w = self.ui.tabWidgetBrowser.widget(index)
-        self.ui.tabWidgetBrowser.removeTab(index)
-        if w == self.tabFiles:
-            self.ui.actionFiles.setChecked(False)
-        elif w == self.tabToken:
-            self.ui.actionTokenTree.setChecked(False)
+        if w == self.ui.tabFile:
+            self.ui.actionViewFiles.setChecked(False)
+        elif w == self.ui.tabToken:
+            self.ui.actionViewTokenTree.setChecked(False)
         else:
-            self.ui.actionSystaxTree.setChecked(False)
+            self.ui.actionViewSystaxTree.setChecked(False)
+
+        # remove tab
+        self.ui.tabWidgetBrowser.removeTab(index)
         if self.ui.tabWidgetBrowser.count() == 0:
             self.ui.tabWidgetBrowser.hide()
 
@@ -305,10 +372,12 @@ class MainWindow(QMainWindow):
         """
         Close(hide) the output tab widget
         :param index:
-        :return:
         """
+
+        # make menu "View" corresponding
+        self.ui.actionViewConsole.setChecked(False)
+
         self.ui.tabWidgetOutput.hide()
-        self.ui.actionConsole.setChecked(False)
 
     def recoverTabWidgets(self):
         """
@@ -332,32 +401,79 @@ class MainWindow(QMainWindow):
         if not self.ui.tabWidgetBrowser.isHidden():
             self.preOpenedTabs.append(self.ui.tabWidgetBrowser)
 
-    @pyqtSlot(int)
-    def maximizeBrowserTab(self, index):
+    def maximizeTabs(self, widget):
         if self.preOpenedTabs:
             self.recoverTabWidgets()
         else:
             self.storeOpenedTabs()
-            self.ui.tabWidgetOutput.hide()
-            self.ui.tabWidgetEditor.hide()
+            for w in [self.ui.tabWidgetBrowser, self.ui.tabWidgetOutput, self.ui.tabWidgetEditor]:
+                if w != widget:
+                    w.hide()
 
-    @pyqtSlot(int)
-    def maximizeEditorTab(self, index):
-        if self.preOpenedTabs:
-            self.recoverTabWidgets()
+    def manageOutputTabs(self, _type):
+        """
+        open or close tab on bottom output tabWidget
+        when bottom push button clicked
+        :param tab:
+        :param name:
+        :return:
+        """
+        if _type == self.ConsoleTypeConsole:
+            title = 'Console'
+            text = self.TextConsole
+        elif _type == self.ConsoleTypeOutput:
+            title = 'Output'
+            text = self.TextOutput
         else:
-            self.storeOpenedTabs()
-            self.ui.tabWidgetBrowser.hide()
+            title = 'Error'
+            text = self.TextError
+        if self.ui.tabWidgetOutput.isHidden():
+            self.ui.tabWidgetOutput.setTabText(0, title)
+            self.ui.textBrowser.setPlainText(text)
+            self.ui.tabWidgetOutput.show()
+        elif self.ui.tabWidgetOutput.tabText(0) == title:
             self.ui.tabWidgetOutput.hide()
-
-    @pyqtSlot(int)
-    def maximizeOutputTab(self, index):
-        if self.preOpenedTabs:
-            self.recoverTabWidgets()
         else:
-            self.storeOpenedTabs()
-            self.ui.tabWidgetBrowser.hide()
-            self.ui.tabWidgetEditor.hide()
+            self.ui.tabWidgetOutput.setTabText(0, title)
+            self.ui.textBrowser.setPlainText(text)
+
+    @pyqtSlot(QAction)
+    def manageMenuView(self, action):
+        """
+        Handle the action on menu "View"
+        :param action:
+        :return:
+        """
+        if action == self.ui.actionViewToolbar:
+            self.ui.toolBar.show() if action.isChecked() else self.ui.toolBar.hide()
+            return
+
+        pair = {
+            self.ui.actionViewFiles: (self.ui.tabWidgetBrowser, self.ui.tabFile, 'File'),
+            self.ui.actionViewTokenTree: (self.ui.tabWidgetBrowser, self.ui.tabToken, 'Token'),
+            self.ui.actionViewSystaxTree: (self.ui.tabWidgetBrowser, self.ui.tabSyntax, 'Syntax'),
+            self.ui.actionViewConsole: (self.ui.tabWidgetOutput, self.ui.tabConsole, 'Console'),
+        }
+        p = pair[action]
+        widget = p[0]
+        tab = p[1]
+        name = p[2]
+
+        if action.isChecked():
+            widget.addTab(tab, name)
+            widget.setCurrentWidget(tab)
+
+            if widget == self.ui.tabWidgetBrowser:  # reset tab inner splitter size
+                w = widget.count() * 80
+                self.ui.splitterInner.setSizes([w, self.ui.splitterInner.width() - w])
+
+            if widget.isHidden():
+                widget.show()
+        else:
+            widget.removeTab(
+                widget.indexOf(tab))
+            if widget.count() == 0:
+                widget.hide()
 
     @pyqtSlot(bool)
     def openFile(self, checked=True, path=None):
@@ -447,37 +563,3 @@ class MainWindow(QMainWindow):
             return True
         else:
             return False
-
-    @pyqtSlot(QAction)
-    def menuViewHandler(self, action):
-        """
-        Handle the action on menu "View"
-        :param action:
-        :return:
-        """
-        if action == self.ui.actionToolbar:
-            self.ui.toolBar.show() if action.isChecked() else self.ui.toolBar.hide()
-        elif action == self.ui.actionConsole:
-            self.ui.tabWidgetOutput.show() if action.isChecked() else self.ui.tabWidgetOutput.hide()
-        else:
-            if action == self.ui.actionFiles:
-                widget = self.tabFiles
-                name = 'File'
-            elif action == self.ui.actionTokenTree:
-                widget = self.tabToken
-                name = 'Token'
-            else:
-                widget = self.tabSyntax
-                name = 'Syntax'
-            if action.isChecked():
-                self.ui.tabWidgetBrowser.addTab(widget, name)
-                self.ui.tabWidgetBrowser.show()
-
-                # reset tab inner splitter size
-                w = self.ui.tabWidgetBrowser.count() * 80
-                self.ui.splitterInner.setSizes([w, self.ui.splitterInner.width() - w])
-            else:
-                self.ui.tabWidgetBrowser.removeTab(
-                    self.ui.tabWidgetBrowser.indexOf(widget))
-                if self.ui.tabWidgetBrowser.count() == 0:
-                    self.ui.tabWidgetBrowser.hide()

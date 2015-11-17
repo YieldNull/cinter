@@ -43,4 +43,4 @@ Appendix A: lexeme to token table
 
 Appendix B: DFA states of CMM
 
-![](srv/CMM_DFA.png)
+![](assets/CMM_DFA.png)

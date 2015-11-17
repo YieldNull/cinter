@@ -7,6 +7,8 @@ import sys
 from PyQt5.QtWidgets import QApplication
 from gui.window import MainWindow
 
+import logging
+
 __author__ = 'hejunjie'
 
 if __name__ == '__main__':

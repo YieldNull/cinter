@@ -13,32 +13,62 @@ __author__ = 'hejunjie'
 
 
 class Parser(object):
-    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr):
+    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr,
+                 lexer_mode=False, parser_mode=False,
+                 compiler_mode=False, execute_mode=False):
+        """
+        Those streams will be closed at last.
+        :param stdin: the source code input stream
+        :param stdout: the standard output stream
+        :param stderr: the standard error stream
+        :param lexer_mode: Run lexer
+        :param parser_mode: Run parser
+        :param compiler_mode: Run compiler
+        :param execute_mode: Run program
+        """
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
         self.lexer = Lexer(stdin, stdout=stdout, stderr=stderr)
-        self.ahead = None
-        self.buff = []
-        self.current = 0  # print token controller
+
+        self.lexer_mode = lexer_mode
+        self.parser_mode = parser_mode
+        self.compiler_mode = compiler_mode
+        self.execute_mode = execute_mode
+
+        self.ahead = None  # The token just read
+        self.buff = []  # unget buffer
+        self.currentLine = 0  # controller for printing lexer analysis result
 
     def parse(self):
         try:
             stmts = self._parse_stmts(False)
         except InValidTokenError:
             return None
-        self.stdout.write('%s\n' % stmts.gen())
+        if self.parser_mode:
+            self.stdout.write('%s\n' % stmts.gen())
         self.stdin.close()
+        self.stdout.close()
+        self.stderr.close()
         return stmts
 
     def _print_lexer(self):
-        if self.lexer.line != self.current:
-            current = self.lexer.line
-            self.stdout.write('%s\n' % '%d: %s' % (current, self.ahead))
+        """
+        Print the lexer analysis result
+        :return:
+        """
+        if self.lexer.line != self.currentLine:
+            self.currentLine = self.lexer.line
+            self.stdout.write('%s\n' % '%d: %s' % (self.currentLine, self.ahead))
         else:
-            self.stdout.write('%s\n' % '   %d: %s' % (self.current, self.ahead))
+            self.stdout.write('%s\n' % '   %d: %s' % (self.currentLine, self.ahead))
 
     def _print_error(self, expect=None):
+        """
+        Print error if not match grammer
+        :param expect:
+        :return:
+        """
         offset = len(self.lexer.read) + 1
         offset -= len(self.ahead.lexeme) if self.ahead else 0
         msg = '\nInvalid token near row %d, column %d:' % (self.lexer.line, offset)
@@ -55,9 +85,15 @@ class Parser(object):
         raise InValidTokenError()
 
     def _get(self):
+        """
+        get one token from lexer.
+        Print token if in lexer_mode
+        :return:
+        """
         if len(self.buff) == 0:
             self.ahead = self.lexer.next_token()
-            # self._print_lexer()
+            if self.lexer_mode:
+                self._print_lexer()
         else:
             self.ahead = self.buff.pop()
 

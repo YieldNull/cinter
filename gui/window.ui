@@ -25,7 +25,7 @@
    </property>
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QSplitter" name="splitterOuter">
+     <widget class="QSplitter" name="splitterOutter">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
@@ -38,7 +38,7 @@
          <number>2</number>
         </property>
         <property name="tabsClosable">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <widget class="QWidget" name="tabFile">
          <attribute name="title">
@@ -142,9 +142,12 @@
        <property name="currentIndex">
         <number>0</number>
        </property>
+       <property name="tabsClosable">
+        <bool>true</bool>
+       </property>
        <widget class="QWidget" name="tabConsole">
         <attribute name="title">
-         <string>Console</string>
+         <string>Page</string>
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <property name="leftMargin">
@@ -160,12 +163,63 @@
           <number>0</number>
          </property>
          <item>
-          <widget class="QTextBrowser" name="textBrowserConsole"/>
+          <widget class="QTextBrowser" name="textBrowser"/>
          </item>
         </layout>
        </widget>
       </widget>
      </widget>
+    </item>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayoutBottom">
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>138</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonConsole">
+        <property name="text">
+         <string>Console</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonOutput">
+        <property name="text">
+         <string>Output</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonError">
+        <property name="text">
+         <string>Error</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>138</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>
@@ -226,25 +280,26 @@
      <string>View</string>
     </property>
     <addaction name="separator"/>
-    <addaction name="actionToolbar"/>
-    <addaction name="actionConsole"/>
+    <addaction name="actionViewToolbar"/>
+    <addaction name="actionViewConsole"/>
     <addaction name="separator"/>
-    <addaction name="actionFiles"/>
-    <addaction name="actionTokenTree"/>
-    <addaction name="actionSystaxTree"/>
+    <addaction name="actionViewFiles"/>
+    <addaction name="actionViewTokenTree"/>
+    <addaction name="actionViewSystaxTree"/>
    </widget>
    <widget class="QMenu" name="menuTest">
     <property name="title">
      <string>Test</string>
     </property>
-    <addaction name="actionLexerTest"/>
-    <addaction name="actionParserTest"/>
-    <addaction name="actionRuntimeTest"/>
+    <addaction name="actionTestLexer"/>
+    <addaction name="actionTestParser"/>
+    <addaction name="actionTestCompiler"/>
+    <addaction name="actionTestRuntime"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEditor"/>
-   <addaction name="menuRun"/>
    <addaction name="menuView"/>
+   <addaction name="menuRun"/>
    <addaction name="menuTest"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -371,7 +426,7 @@
     <string>AboutQt</string>
    </property>
   </action>
-  <action name="actionFiles">
+  <action name="actionViewFiles">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -381,11 +436,8 @@
    <property name="text">
     <string>File Tree</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+3</string>
-   </property>
   </action>
-  <action name="actionTokenTree">
+  <action name="actionViewTokenTree">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -395,11 +447,8 @@
    <property name="text">
     <string>Token Tree</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+4</string>
-   </property>
   </action>
-  <action name="actionSystaxTree">
+  <action name="actionViewSystaxTree">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -408,9 +457,6 @@
    </property>
    <property name="text">
     <string>Systax Tree</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+5</string>
    </property>
   </action>
   <action name="actionBuild">
@@ -467,16 +513,10 @@
    <property name="text">
     <string>Run Lexer</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+L</string>
-   </property>
   </action>
   <action name="actionRunParser">
    <property name="text">
     <string>Run Parser</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+P</string>
    </property>
   </action>
   <action name="actionSaveAs">
@@ -487,7 +527,7 @@
     <string>Ctrl+Shift+S</string>
    </property>
   </action>
-  <action name="actionToolbar">
+  <action name="actionViewToolbar">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -497,45 +537,31 @@
    <property name="text">
     <string>Toolbar</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+1</string>
-   </property>
   </action>
-  <action name="actionLexerTest">
+  <action name="actionTestLexer">
    <property name="text">
     <string>Lexer</string>
    </property>
   </action>
-  <action name="actionParserTest">
+  <action name="actionTestParser">
    <property name="text">
     <string>Parser</string>
    </property>
   </action>
-  <action name="actionRuntimeTest">
+  <action name="actionTestRuntime">
    <property name="text">
     <string>Runtime</string>
    </property>
   </action>
-  <action name="actionConsole">
+  <action name="actionViewConsole">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Console</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+2</string>
-   </property>
-  </action>
-  <action name="actionError">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Error</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+3</string>
    </property>
   </action>
   <action name="actionQuit">
@@ -547,6 +573,11 @@
    </property>
    <property name="shortcutContext">
     <enum>Qt::WindowShortcut</enum>
+   </property>
+  </action>
+  <action name="actionTestCompiler">
+   <property name="text">
+    <string>Compile</string>
    </property>
   </action>
  </widget>

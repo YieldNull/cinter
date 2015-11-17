@@ -28,7 +28,7 @@ class Node(object):
         # except ValueError:
         #     pass
         # else:
-        item = copy.deepcopy(item)
+        item = copy.deepcopy(item)  # TreeView item should be different
         item.parent = self
         self.childItems.append(item)
 
@@ -46,7 +46,7 @@ class Node(object):
         return len(self.childItems)
 
     def data(self):
-        return self.lexeme
+        return self.__str__()
 
     def indexInParent(self):
         """
@@ -62,14 +62,17 @@ class Node(object):
         stdout = StringIO.StringIO()
         while len(stack) > 0:
             n = stack.pop()
-
             p = n.parent
+            indent = []
             while p:
-                if n.parent and n.indexInParent() < n.parent.childCount() - 1:
-                    stdout.write('|     ')
+                if p.parent and p.indexInParent() < p.parent.childCount() - 1:
+                    indent.append('|     ')
                 else:
-                    stdout.write('      ')
+                    indent.append('      ')
                 p = p.parent
+
+            indent.reverse()
+            stdout.write(''.join(indent))
             stdout.write('|----> %s\n' % str(n))
             l = list(n.childItems)
             l.reverse()
@@ -81,6 +84,10 @@ class LeafNode(Node):
     def __init__(self, token):
         super(LeafNode, self).__init__(token.cate)
         self.type = token.type
+        self.token = token
+
+    def __str__(self):
+        return '%s : "%s"' % (self.token.cate, self.token.lexeme)
 
 
 class IdNode(LeafNode):
@@ -309,6 +316,8 @@ class MulNode(Node):
         self.append(op)
 
 
+# pass these nodes when appending to whose parent,
+# and deepcopy them in the function Node.append()
 Node_IF = LeafNode(tokens.Token_IF)
 Node_ELSE = LeafNode(tokens.Token_ELSE)
 Node_WHILE = LeafNode(tokens.Token_WHILE)

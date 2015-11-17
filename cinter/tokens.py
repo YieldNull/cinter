@@ -26,15 +26,15 @@ __author__ = 'hejunjie'
 
 
 class Token(object):
-    def __init__(self, lexeme, t):
+    def __init__(self, lexeme, cate):
         """
         :param lexeme: the lexeme of the token
-        :param t: the type of the token, as a str
+        :param cate: the type of the token, as a str
         :return:
         """
         self.lexeme = lexeme
-        self.type = TYPE[t]
-        self.cate = t  # the str format token type, in order to print
+        self.type = TYPE[cate]
+        self.cate = cate  # the category of the token.like 'COMMA' corresponds to ','
 
     def __str__(self):
         return "<%s: '%s'>" % (self.cate, self.lexeme)
@@ -58,8 +58,8 @@ class Identifier(Token):
 
 
 class ReservedToken(Token):
-    def __init__(self, lexeme, t):
-        super(ReservedToken, self).__init__(lexeme, t)
+    def __init__(self, lexeme, cate):
+        super(ReservedToken, self).__init__(lexeme, cate)
 
     def __str__(self):
         return "<%s: '%s'>" % ('RESERVE', self.lexeme)

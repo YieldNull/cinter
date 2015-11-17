@@ -32,6 +32,13 @@ _IGNORE = ['\t', '\n', ' ']
 
 
 class EOF(object):
+    """
+    When encounter EOF in stdin,return an EOF object.
+
+    A returned char by Lexer._get() will be judged by "isdigit()","isalpha()" and "=="
+    just return False to escape current DFA state
+    """
+
     def isdigit(self):
         return False
 
@@ -40,12 +47,25 @@ class EOF(object):
 
 
 class InValidTokenError(Exception):
+    """
+    When encountered with an invalid token in lexer or parser,
+    raise an InvalidTokenError to stop analysing.
+
+    Invoker should catch this exception
+    """
     pass
 
 
 class Lexer(object):
     def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr):
-        self.input = stdin
+        """
+        Those streams will be closed at last by parser.
+        :param stdin: the source code input stream
+        :param stdout: the standard output stream
+        :param stderr:  the standard error stream
+        :return:
+        """
+        self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
         self.buf = []  # read buffer
@@ -177,7 +197,7 @@ class Lexer(object):
         :return:
         """
         if len(self.buf) == 0:
-            c = self.input.read(1)
+            c = self.stdin.read(1)
             if len(c) == 0:
                 return EOF()
         else:
@@ -213,8 +233,6 @@ class Lexer(object):
         if not isinstance(c, EOF):
             self._ungetc(c)
 
-        self.input.close()
-
     def _print_error(self):
         """
         print invalid token message
@@ -227,5 +245,6 @@ class Lexer(object):
         self.stderr.write('%s\n' % msg)
         self.stderr.write('%s\n' % ''.join(self.read))
         self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
+
         # sys.exit(0)
         raise InValidTokenError()
