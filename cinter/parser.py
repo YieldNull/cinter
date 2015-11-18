@@ -7,7 +7,7 @@ create on '10/5/15 10:36 PM'
 import sys
 from tokens import *
 from nodes import *
-from lexer import Lexer, InValidTokenError
+from lexer import Lexer, InValidTokenError, EOF
 
 __author__ = 'hejunjie'
 
@@ -36,32 +36,64 @@ class Parser(object):
         self.compiler_mode = compiler_mode
         self.execute_mode = execute_mode
 
+        self.syntaxTree = None
+        self.tokenTree = TokenTree()
+
         self.ahead = None  # The token just read
         self.buff = []  # unget buffer
         self.currentLine = 0  # controller for printing lexer analysis result
 
+    def lexse(self):
+        """
+        Run lexer
+        :return: token_tree_root_node
+        """
+        self.ahead = self.lexer.next_token()
+        while self.ahead:
+            self._build_token_tree()
+            try:
+                self.ahead = self.lexer.next_token()
+            except InValidTokenError:
+                self._close_stream()
+                return
+        self._close_stream()
+        return self.tokenTree.rootNode
+
     def parse(self):
+        """
+        Run parser
+        :return: syntax_tree_root_node,token_tree_root_node
+        """
         try:
-            stmts = self._parse_stmts(False)
+            self.syntaxTree = self._parse_stmts(False)
         except InValidTokenError:
             return None
-        if self.parser_mode:
-            self.stdout.write('%s\n' % stmts.gen())
-        self.stdin.close()
-        self.stdout.close()
-        self.stderr.close()
-        return stmts
+        else:
+            self.stdout.write('%s\n' % self.syntaxTree.gen())
+            return self.syntaxTree, self.tokenTree.rootNode
+        finally:
+            self._close_stream()
 
-    def _print_lexer(self):
+    def _build_token_tree(self):
         """
-        Print the lexer analysis result
+        Build token tree and print the lexer analysis result when each _get()
         :return:
         """
         if self.lexer.line != self.currentLine:
             self.currentLine = self.lexer.line
-            self.stdout.write('%s\n' % '%d: %s' % (self.currentLine, self.ahead))
-        else:
+            self.tokenTree.newLine('Line %d' % self.currentLine)
+            if self.lexer_mode:
+                self.stdout.write('%s\n' % '%d: %s' % (self.currentLine, self.ahead))
+        elif self.lexer_mode:
             self.stdout.write('%s\n' % '   %d: %s' % (self.currentLine, self.ahead))
+
+        if self.ahead:
+            self.tokenTree.append(TokenNode(self.ahead))
+
+    def _close_stream(self):
+        self.stdin.close()
+        self.stdout.close()
+        self.stderr.close()
 
     def _print_error(self, expect=None):
         """
@@ -92,8 +124,7 @@ class Parser(object):
         """
         if len(self.buff) == 0:
             self.ahead = self.lexer.next_token()
-            if self.lexer_mode:
-                self._print_lexer()
+            self._build_token_tree()
         else:
             self.ahead = self.buff.pop()
 

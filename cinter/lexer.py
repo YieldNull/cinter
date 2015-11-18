@@ -93,7 +93,7 @@ class Lexer(object):
         if c == '/':
             c = self._getch()
             if c == '/':
-                while c != '\n':
+                while c != '\n' and not isinstance(c, EOF):
                     c = self._getch()
                 return self.next_token()
             elif c == '*':

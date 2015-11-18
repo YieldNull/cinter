@@ -18,17 +18,19 @@ class Node(object):
     def __str__(self):
         return self.lexeme
 
-    def append(self, item):
+    def append(self, item, _copy=True):
         """
         Append a item as its child.Show as a sub row in treeView
         :param item:
+        :param _copy: deepcop the item before append(used in syntax tree)
         """
         # try:
         #     self.childItems.index(item)
         # except ValueError:
         #     pass
         # else:
-        item = copy.deepcopy(item)  # TreeView item should be different
+        if _copy:
+            item = copy.deepcopy(item)  # TreeView item should be different
         item.parent = self
         self.childItems.append(item)
 
@@ -78,6 +80,36 @@ class Node(object):
             l.reverse()
             stack += l
         return stdout.getvalue()
+
+
+class TokenTree(object):
+    """
+    Generate Token Tree.
+    Each line as a sub tree.
+    When newLine, gen a new sub tree
+    When append, append a node to the bottom sub tree
+    """
+
+    def __init__(self):
+        self.currentLine = 0
+        self.rootNode = Node('Token Tree')
+        self.bottomTree = None
+
+    def newLine(self, lexeme):
+        self.bottomTree = Node(lexeme)
+        self.rootNode.append(self.bottomTree, _copy=False)
+
+    def append(self, node):
+        self.bottomTree.append(node, _copy=False)
+
+
+class TokenNode(Node):
+    def __init__(self, token):
+        super(TokenNode, self).__init__(token.lexeme)
+        self.token = token
+
+    def __str__(self):
+        return str(self.token)
 
 
 class LeafNode(Node):

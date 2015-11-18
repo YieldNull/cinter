@@ -199,6 +199,27 @@ class MainWindow(QMainWindow):
         self.ui.actionAboutQt.triggered.connect(QApplication.aboutQt)
 
         self.ui.actionRunParser.triggered.connect(self.runParser)
+        self.ui.actionRunLexer.triggered.connect(self.runLexer)
+
+    def runLexer(self):
+        """
+        Run lexer and present result on self.ui.tabToken Tree
+        :return:
+        """
+        if not self.saveFile():
+            return
+        self.showOutputPanel()
+
+        stdin = open(self.currentEditor.file, 'r')
+        stdout = Console(self.ui.textBrowser)
+        stderr = Console(self.ui.textBrowser, QColor().red())
+        p = Parser(stdin, stdout=stdout, stderr=stderr, lexer_mode=True)
+        tokenNode = p.lexse()
+
+        if not tokenNode:
+            return
+
+        self.showBrowserTree(self.ui.tabToken, tokenNode)
 
     def runParser(self):
         """
@@ -207,22 +228,16 @@ class MainWindow(QMainWindow):
         """
         if not self.saveFile():
             return
-
-        # Clear previous output and show the ouput panel
-        self.ui.textBrowser.clear()
-        self.ui.tabWidgetOutput.show()
-        if self.ui.treeViewSyntax.model():
-            self.ui.treeViewSyntax.model().clear()
+        self.showOutputPanel()
 
         # Begin parse
         stdin = open(self.currentEditor.file, 'r')
         stdout = Console(self.ui.textBrowser)
         stderr = Console(self.ui.textBrowser, QColor().red())
         p = Parser(stdin, stdout=stdout, stderr=stderr, parser_mode=True)
-        rootNode = p.parse()
 
-        # Show parse result in a treeView
-        if not rootNode:
+        result = p.parse()
+        if not result:
             self.ui.tabWidgetOutput.setTabText(0, 'Error')
             self.TextError = self.ui.textBrowser.document().toPlainText()
             return
@@ -230,14 +245,43 @@ class MainWindow(QMainWindow):
             self.ui.tabWidgetOutput.setTabText(0, 'Output')
             self.TextOutput = self.ui.textBrowser.document().toPlainText()
 
-        model = TreeModel(rootNode)
-        self.ui.treeViewSyntax.setModel(model)
-        self.ui.treeViewSyntax.setAnimated(True)
+        syntaxNode, tokenNode = result
+        self.showBrowserTree(self.ui.tabToken, tokenNode)
+        self.showBrowserTree(self.ui.tabSyntax, syntaxNode)
 
-        # show the Syntax tab
-        self.ui.tabWidgetBrowser.addTab(self.ui.tabSyntax, 'Syntax')
-        index = self.ui.tabWidgetBrowser.indexOf(self.ui.tabSyntax)
+    def showOutputPanel(self):
+        """
+        Clear previous output and show the ouput panel
+        :return:
+        """
+        self.ui.textBrowser.clear()
+        self.ui.tabWidgetOutput.show()
+
+    def showBrowserTree(self, tab, rootNode):
+        """
+        Show treeView on tabWidgetBrowser
+        :param tab:
+        :param rootNode:
+        """
+        model = TreeModel(rootNode)
+
+        if tab == self.ui.tabSyntax:
+            treeView = self.ui.treeViewSyntax
+            name = 'Syntax'
+        else:
+            treeView = self.ui.treeViewToken
+            name = 'Token'
+
+        treeView.setModel(model)
+        treeView.setAnimated(True)
+
+        # show the tab
+        index = self.ui.tabWidgetBrowser.indexOf(tab)
+        if index == -1:
+            self.ui.tabWidgetBrowser.addTab(tab, name)
         self.ui.tabWidgetBrowser.setCurrentIndex(index)
+
+        self.addjustBrowserWidth()
 
     def closeEvent(self, event):
         """
@@ -464,8 +508,7 @@ class MainWindow(QMainWindow):
             widget.setCurrentWidget(tab)
 
             if widget == self.ui.tabWidgetBrowser:  # reset tab inner splitter size
-                w = widget.count() * 80
-                self.ui.splitterInner.setSizes([w, self.ui.splitterInner.width() - w])
+                self.addjustBrowserWidth()
 
             if widget.isHidden():
                 widget.show()
@@ -474,6 +517,10 @@ class MainWindow(QMainWindow):
                 widget.indexOf(tab))
             if widget.count() == 0:
                 widget.hide()
+
+    def addjustBrowserWidth(self):
+        w = self.ui.tabWidgetBrowser.count() * 80
+        self.ui.splitterInner.setSizes([w, self.ui.splitterInner.width() - w])
 
     @pyqtSlot(bool)
     def openFile(self, checked=True, path=None):
