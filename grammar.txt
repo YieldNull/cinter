@@ -1,0 +1,73 @@
+NEWLINE ::= "\r"? "\n"
+WS      ::= " "|"\t"
+
+IF	    ::=	"if"
+ELSE	::=	"else"
+WHILE	::=	"while"
+READ	::=	"read"
+WRITE	::=	"write"
+INT	    ::=	"int"
+REAL	::=	"real"
+PLUS	::=	"+"
+MINUS	::=	"-"
+TIMES	::=	"*"
+DIVIDE	::=	"/"
+ASSIGN	::=	"="
+
+LT	::=	"<"
+GT	::=	">"
+EQUAL	::=	"=="
+NEQUAL	::=	"<>"
+
+
+LPAREN	::=	"("
+RPAREN	::=	")"
+LBRACE	::=	"{"
+RBRACE	    ::=	"}"
+LBRACKET    ::=	"["
+RBRACKET    ::=	"]"
+
+ROWCOMM	    ::=	"//"
+MULCOMM	    ::=	"/*" (~["*"])* "*" (~["/"] (~["*"])* "*")* "/"
+COMMA	    ::=	","
+SEMICOLON   ::=	";"
+
+
+LETTER	    ::=	["a"-"z"]|["A"-"Z"]
+DIGIT	    ::=	["0"-"9"]
+ID	        ::=	<LETTER> ( ( <LETTER> | <DIGIT> | "_" ) * ( <LETTER> | <DIGIT> ) )?
+
+INT_LITERAL ::=	["1"-"9"] (<DIGIT>)* | "0"
+REAL_LITERAL::=	<INT_LITERAL> ( "."( <INT_LITERAL> )+ )?
+
+program	    ::=	statements
+          
+statements  ::=	(ifStmt | whileStmt | readStmt | writeStmt | assignStmt | declareStmt )+
+
+ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> statement <RBRACE> ( <ELSE> <LBRACE> statement <RBRACE> )?
+
+whileStmt   ::=	<WHILE> <LPAREN> condition <RPAREN> <LBRACE> (statement)+ <RBRACE>
+
+readStmt    ::=	<READ> <LPAREN> <ID> <RPAREN> <SEMICOLON>
+
+writeStmt   ::=	<WRITE> <LPAREN> expression <RPAREN> <SEMICOLON>
+
+assignStmt  ::=	<ID> [array] <ASSIGN> expression <SEMICOLON>
+
+declareStmt ::=	(<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
+
+condition	::=	expression compOp expression
+
+expression  ::=	term (addOp term)*
+
+term	    ::=	factor (mulOp factor)*
+
+factor	    ::=	<REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
+
+array 	    ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
+
+compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
+
+addOp	    ::=	<PLUS> | <MINUS>
+
+mulOp	    ::=	<TIMES> | <DIVIDE>
