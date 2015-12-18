@@ -8,6 +8,8 @@ READ	::=	"read"
 WRITE	::=	"write"
 INT	    ::=	"int"
 REAL	::=	"real"
+RETURN  ::= "return"
+VOID    ::= "void"
 PLUS	::=	"+"
 MINUS	::=	"-"
 TIMES	::=	"*"
@@ -19,10 +21,9 @@ GT	::=	">"
 EQUAL	::=	"=="
 NEQUAL	::=	"<>"
 
-
-LPAREN	::=	"("
-RPAREN	::=	")"
-LBRACE	::=	"{"
+LPAREN	    ::=	"("
+RPAREN	    ::=	")"
+LBRACE	    ::=	"{"
 RBRACE	    ::=	"}"
 LBRACKET    ::=	"["
 RBRACKET    ::=	"]"
@@ -32,42 +33,36 @@ MULCOMM	    ::=	"/*" (~["*"])* "*" (~["/"] (~["*"])* "*")* "/"
 COMMA	    ::=	","
 SEMICOLON   ::=	";"
 
-
 LETTER	    ::=	["a"-"z"]|["A"-"Z"]
 DIGIT	    ::=	["0"-"9"]
 ID	        ::=	<LETTER> ( ( <LETTER> | <DIGIT> | "_" ) * ( <LETTER> | <DIGIT> ) )?
-
 INT_LITERAL ::=	["1"-"9"] (<DIGIT>)* | "0"
 REAL_LITERAL::=	<INT_LITERAL> ( "."( <INT_LITERAL> )+ )?
 
-program	    ::=	statements
-          
-statements  ::=	(ifStmt | whileStmt | readStmt | writeStmt | assignStmt | declareStmt )+
+program	    ::=	exterStmts
+exterStmts  ::= ( declareStmt | funcDeclStmt )+
+innerStmts  ::= ( declareStmt | assignStmt | ifStmt | whileStmt | funcCallStmt | returnStmt )*
 
-ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> statement <RBRACE> ( <ELSE> <LBRACE> statement <RBRACE> )?
-
-whileStmt   ::=	<WHILE> <LPAREN> condition <RPAREN> <LBRACE> (statement)+ <RBRACE>
-
-readStmt    ::=	<READ> <LPAREN> <ID> <RPAREN> <SEMICOLON>
-
-writeStmt   ::=	<WRITE> <LPAREN> expression <RPAREN> <SEMICOLON>
-
+declareStmt ::=	( <INT> | <REAL> ) <ID> [array] ( <COMMA> <ID> [array] )* <SEMICOLON>
 assignStmt  ::=	<ID> [array] <ASSIGN> expression <SEMICOLON>
+ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
+whileStmt   ::=	<WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
 
-declareStmt ::=	(<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
+funcDeclStmt        ::= returnType <ID> <LPAREN> funcDeclParams  <RPAREN> <LBRACE> innerStmts <LBRACE>
+funcCallStmt        ::= <ID> <LPAREN> funcCallParams  <RPAREN> <SEMICOLON>
+funcDeclParam       ::= ( <INT> | <REAL> ) <ID>[array]
+funcDeclParamList   ::= ( funcDeclParam ( <COMMA> funcDeclParam )* )?
+funcCallParamList   ::= ( <ID>  ( <COMMA> <ID> )* )?
+returnStmt          ::= <RETURN> expression <SEMICOLON>
+returnType          ::= ( <INT> | <REAL> | <VOID>)
+
+array 	::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
 
 condition	::=	expression compOp expression
-
 expression  ::=	term (addOp term)*
-
 term	    ::=	factor (mulOp factor)*
-
 factor	    ::=	<REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
 
-array 	    ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
-
 compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
-
 addOp	    ::=	<PLUS> | <MINUS>
-
 mulOp	    ::=	<TIMES> | <DIVIDE>

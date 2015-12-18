@@ -7,7 +7,7 @@ create on '10/5/15 10:36 PM'
 import sys
 from tokens import *
 from nodes import *
-from lexer import Lexer, InValidTokenError, EOF
+from lexer import Lexer, InvalidTokenError
 
 __author__ = 'hejunjie'
 
@@ -53,7 +53,7 @@ class Parser(object):
             self._build_token_tree()
             try:
                 self.ahead = self.lexer.next_token()
-            except InValidTokenError:
+            except InvalidTokenError:
                 self._close_stream()
                 return
         self._close_stream()
@@ -65,14 +65,67 @@ class Parser(object):
         :return: syntax_tree_root_node,token_tree_root_node
         """
         try:
-            self.syntaxTree = self._parse_stmts(False)
-        except InValidTokenError:
+            self.syntaxTree = self._parse_exter_stmts()
+        except InvalidTokenError:
             return None
         else:
             self.stdout.write('%s\n' % self.syntaxTree.gen())
             return self.syntaxTree, self.tokenTree.rootNode
         finally:
             self._close_stream()
+
+    def _close_stream(self):
+        self.stdin.close()
+        self.stdout.close()
+        self.stderr.close()
+
+    def _get(self):
+        """
+        get one token from lexer.
+        Print token if in lexer_mode
+        :return:
+        """
+        if len(self.buff) == 0:
+            self.ahead = self.lexer.next_token()
+            self._build_token_tree()
+        else:
+            self.ahead = self.buff.pop()
+        return self.ahead
+
+    def _unget(self, t=None):
+        """
+        put current token to buff
+        :return:
+        """
+        self.buff.append(t or self.ahead)
+        self.ahead = None
+
+    def _match(self, t):
+        """
+        Check if the next token matches t or not.
+        If not match, unget current token.
+        :param t: single token or token list
+        :return:
+        """
+        if isinstance(t, Token):
+            t = (t,)
+        self._get()
+        if self.ahead and self.ahead.type in [tp.type for tp in t]:
+            return True
+        else:
+            return False
+
+    def _expect(self, t):
+        """
+        expect next token to be t (or int a list of t).
+        if not, raise an error
+        :param t:
+        :return:
+        """
+        if not self._match(t):
+            self._print_error(t)
+        else:
+            return self.ahead
 
     def _build_token_tree(self):
         """
@@ -89,11 +142,6 @@ class Parser(object):
 
         if self.ahead:
             self.tokenTree.append(TokenNode(self.ahead))
-
-    def _close_stream(self):
-        self.stdin.close()
-        self.stdout.close()
-        self.stderr.close()
 
     def _print_error(self, expect=None):
         """
@@ -114,68 +162,158 @@ class Parser(object):
         if expect:
             self.stderr.write('%s\n' % 'Expected %s' % (' or '.join([t.cate for t in expect])))
         # sys.exit(0)
-        raise InValidTokenError()
+        raise InvalidTokenError()
 
-    def _get(self):
+    def _parse_exter_stmts(self):
         """
-        get one token from lexer.
-        Print token if in lexer_mode
-        :return:
+        exterStmts  ::= ( declareStmt | funcDeclStmt )*
+
+        (<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* ...
+        VS
+        ( ( <INT> | <REAL> ) | <LBRACKET> <LBRACKET> ) | <VOID> )  <ID> <LPAREN> ...
+
+        Parse begin.............................................
         """
-        if len(self.buff) == 0:
-            self.ahead = self.lexer.next_token()
-            self._build_token_tree()
-        else:
-            self.ahead = self.buff.pop()
+        stmts = []
+        while self._get():
+            if self.ahead == Token_VOID:
+                self._unget()
+                stmts.append(self._parse_stmt_func_decl())
+            else:
+                _type = self.ahead
+                if self._match(Token_LBRACKET):
+                    self._unget()
+                    self._unget(_type)
+                    stmts.append(self._parse_stmt_func_decl())
+                else:
+                    self._unget()
+                    _id = self._expect(Token_Identifier)
+                    m = self._match(Token_LPAREN)
+                    self._unget()
+                    self._unget(_id)
+                    self._unget(_type)
+                    if m:
+                        stmts.append(self._parse_stmt_func_decl())
+                    else:
+                        stmts.append(self._parse_stmt_declare())
+        return ExterStmtsNode(stmts)
 
-    def _unget(self):
-        self.buff.append(self.ahead)
-
-    def _match(self, t):
-        if isinstance(t, Token):
-            t = (t,)
-        self._get()
-        if self.ahead and self.ahead.type in [tp.type for tp in t]:
-            return True
-
-    def _expect(self, t):
-        if not self._match(t):
-            self._print_error(t)
-
-    def _parse_stmts(self, match=True):
+    def _parse_inner_stmts(self):
         """
-        statements   ::=
-        (ifStmt | whileStmt | readStmt | writeStmt | assignStmt | declareStmt)+
-        :return:
+        innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt | returnStmt )*
         """
-        l = []
-        self._get()
-        while self.ahead:
+        stmts = []
+        while self._get():
             t = self.ahead
             self._unget()
             if t == Token_IF:
-                l.append(self._parse_stmt_if())
+                stmts.append(self._parse_stmt_if())
             elif t == Token_WHILE:
-                l.append(self._parse_stmt_while())
-            elif t == Token_READ:
-                l.append(self._parse_stmt_read())
-            elif t == Token_WRITE:
-                l.append(self._parse_stmt_write())
+                stmts.append(self._parse_stmt_while())
+            elif t in [Token_INT, Token_REAL]:
+                stmts.append(self._parse_stmt_declare())
+            elif t == Token_RETURN:
+                stmts.append(self._parse_stmt_return())
             elif isinstance(t, Identifier):
-                l.append(self._parse_stmt_assign())
-            elif t == Token_INT or t == Token_REAL:
-                l.append(self._parse_stmt_declare())
-            elif not match:
-                self._print_error()
+                if self._match(Token_LPAREN):
+                    self._unget()
+                    self._parse_stmt_func_call()
+                else:
+                    self._unget()
+                    stmts.append(self._parse_stmt_assign())
             else:
                 break
-            self._get()
-        return StmtsNode(l)
+        return InnerStmtsNode(stmts)
+
+    def _parse_stmt_func_decl(self):
+        """
+        funcDeclStmt ::= ( ( <INT> | <REAL> ) | <LBRACKET> <LBRACKET> ) | <VOID> )  <ID>
+                        <LPAREN> ( funcDeclParamList )?  <RPAREN> <LBRACE> innerStmts <LBRACE>
+        """
+        _type = self._expect([Token_INT, Token_REAL, Token_VOID])
+        arr = self._parse_arr()
+        if arr and _type == Token_VOID:
+            raise InvalidTokenError()
+
+        _id = self._expect(Token_Identifier)
+        self._expect(Token_LPAREN)
+
+        params = None
+        if not self._match(Token_RPAREN):
+            self._unget()
+            params = self._parse_func_decl_param_list()
+        self._expect(Token_RPAREN)
+        self._expect(Token_LBRACE)
+        stmts = self._parse_inner_stmts()
+        self._expect(Token_LBRACE)
+        return FuncDeclStmtNode(IdNode(_id, _type), params, stmts, arr)
+
+    def _parse_stmt_func_call(self):
+        """
+        funcCallStmt    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
+        """
+        _id = self._expect(Token_Identifier)
+        self._expect(Token_LPAREN)
+
+        params = None
+        if not self._match(Token_RPAREN):
+            self._unget()
+            params = self._parse_func_call_param_list()
+        self._expect(Token_RPAREN)
+        self._expect(Token_SEMICOLON)
+        return FuncCallStmtNode(IdNode(_id), params)
+
+    def _parse_stmt_return(self):
+        """
+        returnStmt      ::= <RETURN> expression <SEMICOLON>
+        """
+        self._expect(Token_RETURN)
+        expr = self._parse_expr()
+        self._expect(Token_SEMICOLON)
+        return ReturnStmtNode(expr)
+
+    def _parse_func_decl_param_list(self):
+        """
+        funcDeclParamList  ::= funcDeclParam ( <COMMA> funcDeclParam )*
+        """
+        params = [self._parse_func_decl_param()]
+        while True:
+            if self._match(Token_COMMA):
+                params.append(self._parse_func_decl_param())
+            else:
+                self._unget()
+                break
+        return FuncDeclParamList(params)
+
+    def _parse_func_call_param_list(self):
+        """
+        funcCallParams  ::=  <ID>  ( <COMMA> <ID> )*
+        """
+        id_list = []
+        self._expect(Token_Identifier)
+        id_list.append(IdNode(self.ahead))
+        while True:
+            if self._match(Token_COMMA):
+                self._expect(Token_Identifier)
+                id_list.append(self.ahead)
+            else:
+                self._unget()
+                break
+        return FuncCallParamList(id_list)
+
+    def _parse_func_decl_param(self):
+        """
+        funcDeclParam   ::= ( <INT> | <REAL> | <VOID>) <ID>[array]
+        """
+        _type = self._expect([Token_INT, Token_REAL, Token_VOID])
+        _id = self._expect(Token_Identifier)
+        arr = self._parse_arr(check=True)
+        return FuncDeclParam(IdNode(_id, _type), arr)
 
     def _parse_stmt_if(self):
         """
         ifStmt  ::=
-        <IF> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE> ( <ELSE> <LBRACE> statements <RBRACE> )?
+        <IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts  <RBRACE> )?
         :return:
         """
         self._expect(Token_IF)
@@ -183,12 +321,12 @@ class Parser(object):
         cond = self._parse_cond()
         self._expect(Token_RPAREN)
         self._expect(Token_LBRACE)
-        stmts = self._parse_stmts()
+        stmts = self._parse_inner_stmts()
         stmts2 = None
         self._expect(Token_RBRACE)
         if self._match(Token_ELSE):
             self._expect(Token_LBRACE)
-            stmts2 = self._parse_stmts()
+            stmts2 = self._parse_inner_stmts()
             self._expect(Token_RBRACE)
         else:
             self._unget()
@@ -197,7 +335,7 @@ class Parser(object):
     def _parse_stmt_while(self):
         """
         whileStmt   ::=
-        <WHILE> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE>
+        <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
         :return:
         """
         self._expect(Token_WHILE)
@@ -205,36 +343,9 @@ class Parser(object):
         cond = self._parse_cond()
         self._expect(Token_RPAREN)
         self._expect(Token_LBRACE)
-        stmts = self._parse_stmts()
+        stmts = self._parse_inner_stmts()
         self._expect(Token_RBRACE)
         return WhileStmtNode(cond, stmts)
-
-    def _parse_stmt_read(self):
-        """
-        readStmt    ::=
-        <READ> <LPAREN> <ID> <RPAREN> <SEMICOLON>
-        :return:
-        """
-        self._expect(Token_READ)
-        self._expect(Token_LPAREN)
-        self._expect(Token_Identifier)
-        ident = self.ahead
-        self._expect(Token_RPAREN)
-        self._expect(Token_SEMICOLON)
-        return ReadStmtNode(IdNode(ident))
-
-    def _parse_stmt_write(self):
-        """
-        writeStmt   ::=
-        <WRITE> <LPAREN> expression <RPAREN> <SEMICOLON>
-        :return:
-        """
-        self._expect(Token_WRITE)
-        self._expect(Token_LPAREN)
-        expr = self._parse_expr()
-        self._expect(Token_RPAREN)
-        self._expect(Token_SEMICOLON)
-        return WriteStmtNode(expr)
 
     def _parse_stmt_assign(self):
         """
@@ -256,27 +367,24 @@ class Parser(object):
     def _parse_stmt_declare(self):
         """
         declareStmt ::=
-        (<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
-        :return:
+        ( <INT> | <REAL> ) <ID> [ array ] ( <COMMA> <ID> [ array ] )* <SEMICOLON>
         """
-        l = []
-        self._expect((Token_INT, Token_REAL))
-        t = self.ahead
+        id_arr_list = []
+        _type = self._expect((Token_INT, Token_REAL))
         self._expect(Token_Identifier)
-        _id = IdNode(self.ahead, t.type)
+        _id = IdNode(self.ahead, _type)
         arr = self._parse_arr(True)  # may be None
-        l.append((_id, arr))
+        id_arr_list.append((_id, arr))
         while True:
             if self._match(Token_COMMA):
-                self._expect(Token_Identifier)
-                i = self.ahead
-                a = self._parse_arr(True)  # may be None
+                _id = self._expect(Token_Identifier)
+                arr = self._parse_arr(True)  # may be None
             else:
                 self._unget()
                 break
-            l.append((IdNode(i, t.type), a))
+            id_arr_list.append((IdNode(_id, _type), arr))
         self._expect(Token_SEMICOLON)
-        return DeclareStmtNode(LiteralNode(t), l)
+        return DeclareStmtNode(id_arr_list)
 
     def _parse_cond(self):
         """
@@ -340,12 +448,12 @@ class Parser(object):
         else:
             return FactorNode(literal=LiteralNode(t))
 
-    def _parse_arr(self, match=False):
+    def _parse_arr(self, check=False):
         """
         array   ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
         :return:
         """
-        if match:
+        if check:
             if self._match(Token_LBRACKET):
                 self._expect((Token_IntLiteral, Token_Identifier))
                 t = self.ahead
@@ -373,25 +481,25 @@ class Parser(object):
         self._expect((Token_LT, Token_GT, Token_EQUAL, Token_NEQUAL))
         return CompNode(LeafNode(self.ahead))
 
-    def _parse_op_add(self, match=False):
+    def _parse_op_add(self, check=False):
         """
         addOp	    ::=	<PLUS> | <MINUS>
-        :param match:
+        :param check:
         :return:
         """
-        if match:
+        if check:
             if self._match((Token_PLUS, Token_MINUS)):
                 return AddNode(LeafNode(self.ahead))
         else:
             self._expect((Token_PLUS, Token_MINUS))
 
-    def _parse_op_mul(self, match=False):
+    def _parse_op_mul(self, check=False):
         """
         mulOp	    ::=	<TIMES> | <DIVIDE>
-        :param match:
+        :param check:
         :return:
         """
-        if match:
+        if check:
             if self._match((Token_TIMES, Token_DIVIDE)):
                 return MulNode(LeafNode(self.ahead))
         else:

@@ -1,15 +1,21 @@
 # coding:utf-8
 """
+Nodes of abstract grammar tree.
+
 create on '11/9/15 12:54 PM'
 """
 import StringIO
-import copy
+
 from cinter import tokens
 
 __author__ = 'hejunjie'
 
 
 class Node(object):
+    """
+    Basic node which is also used in QAbstractItemModel.
+    """
+
     def __init__(self, lexeme, parent=None):
         self.lexeme = lexeme
         self.parent = parent
@@ -18,19 +24,12 @@ class Node(object):
     def __str__(self):
         return self.lexeme
 
-    def append(self, item, _copy=True):
+    def append(self, item):
         """
         Append a item as its child.Show as a sub row in treeView
         :param item:
-        :param _copy: deepcop the item before append(used in syntax tree)
         """
-        # try:
-        #     self.childItems.index(item)
-        # except ValueError:
-        #     pass
-        # else:
-        if _copy:
-            item = copy.deepcopy(item)  # TreeView item should be different
+        assert isinstance(item, Node)
         item.parent = self
         self.childItems.append(item)
 
@@ -60,6 +59,9 @@ class Node(object):
         return 0
 
     def gen(self):
+        """
+        Print tree with itself as the root node.
+        """
         stack = [self]
         stdout = StringIO.StringIO()
         while len(stack) > 0:
@@ -82,12 +84,25 @@ class Node(object):
         return stdout.getvalue()
 
 
+#####################################################
+#############  for building token tree ##############
+#####################################################
+
+class TokenNode(Node):
+    def __init__(self, t):
+        super(TokenNode, self).__init__(t.lexeme)
+        self.token = t
+
+    def __str__(self):
+        return str(self.token)
+
+
 class TokenTree(object):
     """
-    Generate Token Tree.
-    Each line as a sub tree.
+    Generate Token Tree which is used in QAbstractItemModel.
+    Each line is a sub tree.
     When newLine, gen a new sub tree
-    When append, append a node to the bottom sub tree
+    When append, append a node to the bottom sub tree.
     """
 
     def __init__(self):
@@ -97,120 +112,207 @@ class TokenTree(object):
 
     def newLine(self, lexeme):
         self.bottomTree = Node(lexeme)
-        self.rootNode.append(self.bottomTree, _copy=False)
+        self.rootNode.append(self.bottomTree)
 
     def append(self, node):
-        self.bottomTree.append(node, _copy=False)
+        self.bottomTree.append(node)
 
 
-class TokenNode(Node):
-    def __init__(self, token):
-        super(TokenNode, self).__init__(token.lexeme)
-        self.token = token
-
-    def __str__(self):
-        return str(self.token)
+#############################################################
+#############  Util nodes for building grammar tree #########
+#############################################################
 
 
 class LeafNode(Node):
-    def __init__(self, token):
-        super(LeafNode, self).__init__(token.cate)
-        self.type = token.type
-        self.token = token
+    """
+    A leaf node which does not have a child node.
+    """
+
+    def __init__(self, t):
+        super(LeafNode, self).__init__(t.cate)
+
+        self.type = t.type
+        self.token = t
 
     def __str__(self):
         return '%s : "%s"' % (self.token.cate, self.token.lexeme)
 
 
-class IdNode(LeafNode):
-    def __init__(self, token, data_type=None):
-        super(IdNode, self).__init__(token)
-        self.data_type = data_type
-
-
 class LiteralNode(LeafNode):
-    def __init__(self, token):
-        super(LiteralNode, self).__init__(token)
-        self.data_type = token.type
-
-
-class StmtsNode(Node):
     """
-    statements   ::=
-    (ifStmt | whileStmt | readStmt | writeStmt | assignStmt | declareStmt)+
+    A real or integer literal node.
+    """
+
+    def __init__(self, t):
+        super(LiteralNode, self).__init__(t)
+        self.type = t.type
+
+
+class IdNode(LeafNode):
+    """
+    An Id node which needs to record the **type** of it.
+
+    Type means 'int','real', 'array' or 'function name'?
+    """
+
+    def __init__(self, _id, _type=None):
+        assert isinstance(_id, tokens.Token)
+        assert _type is None or isinstance(_type, tokens.Token)
+        super(IdNode, self).__init__(_id)
+        self.type = _type.type
+
+
+class VoidParamNode(Node):
+    """
+    Void function call param or declare param
+    """
+
+    def __init__(self):
+        super(VoidParamNode, self).__init__('Void')
+
+
+class EmptyBodyNode(Node):
+    """
+    Empty innerStmts body.
+    """
+
+    def __int__(self):
+        super(EmptyBodyNode, self).__init__('EmptyBody')
+
+
+#####################################################
+#################### grammar nodes ##################
+#####################################################
+
+class ExterStmtsNode(Node):
+    """
+    exterStmts  ::= ( declareStmt | funcDeclStmt )*
     """
 
     def __init__(self, stmt_list):
-        super(StmtsNode, self).__init__('Stmts')
+        super(ExterStmtsNode, self).__init__('ExterStmts')
         for stmt in stmt_list:
             self.append(stmt)
+
+
+class InnerStmtsNode(Node):
+    """
+    innerStmts   ::=
+    ( declareStmt | assignStmt | ifStmt | whileStmt | funcCallStmt | returnStmt )*
+    """
+
+    def __init__(self, stmt_list):
+        super(InnerStmtsNode, self).__init__('InnerStmts')
+        if len(stmt_list) > 0:
+            for stmt in stmt_list:
+                self.append(stmt)
+        else:
+            self.append(EmptyBodyNode())
+
+
+class FuncDeclStmtNode(Node):
+    """
+    funcDeclStmt ::= ( <INT> | <REAL> | <VOID>) [ array ] <ID>
+                <LPAREN> ( funcDeclParamList )?  <RPAREN> <LBRACE> innerStmts <LBRACE>
+    """
+
+    def __init__(self, _id, params, innerStmts, arr=None):
+        super(FuncDeclStmtNode, self).__init__('FuncDeclStmt')
+        self.append(_id)
+        if arr:
+            self.append(arr)
+        if params is None:
+            params = VoidParamNode()
+        self.append(params)
+        self.append(innerStmts)
+
+
+class FuncCallStmtNode(Node):
+    """
+    funcCallStmt    ::= <ID> <LPAREN> funcCallParams  <RPAREN> <SEMICOLON>
+    """
+
+    def __init__(self, _id, param):
+        super(FuncCallStmtNode, self).__init__('FuncCallStmt')
+        self.append(_id)
+        if param is None:
+            param = VoidParamNode()
+        self.append(param)
+
+
+class FuncDeclParam(Node):
+    """
+    funcDeclParam   ::= ( <INT> | <REAL> | <VOID>) <ID>[array]
+    """
+
+    def __init__(self, _id, arr=None):
+        super(FuncDeclParam, self).__init__('FuncDeclParam')
+        assert isinstance(_id, IdNode)
+        self.append(_id)
+        if arr:
+            self.append(arr)
+
+
+class FuncDeclParamList(Node):
+    """
+    funcDeclParamList  ::= ( funcDeclParam ( <COMMA> funcDeclParam )* )?
+    """
+
+    def __init__(self, decl_param_list):
+        super(FuncDeclParamList, self).__init__('FuncDeclParams')
+        if not decl_param_list:
+            self.append(VoidParamNode)
+        else:
+            for param in decl_param_list:
+                self.append(param)
+
+
+class FuncCallParamList(Node):
+    """
+    funcCallParams  ::= <ID>  ( <COMMA> <ID> )*
+    """
+
+    def __init__(self, id_list):
+        super(FuncCallParamList, self).__init__('FuncCallParamList')
+        for _id in id_list:
+            assert isinstance(_id, IdNode)
+            self.append(_id)
+
+
+class ReturnStmtNode(Node):
+    """
+    returnStmt      ::= <RETURN> expression <SEMICOLON>
+    """
+
+    def __init__(self, expr):
+        super(ReturnStmtNode, self).__init__('ReturnStmt')
+        self.append(expr)
 
 
 class IfStmtNode(Node):
     """
     ifStmt  ::=
-    <IF> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE> ( <ELSE> <LBRACE> statements <RBRACE> )?
+    <IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
     """
 
     def __init__(self, cond, stmts1, stmts2=None):
         super(IfStmtNode, self).__init__('IfStmt')
-        self.append(Node_IF)
-        self.append(Node_LPAREN)
         self.append(cond)
-        self.append(Node_RPAREN)
-        self.append(Node_LBRACE)
         self.append(stmts1)
-        self.append(Node_RBRACE)
         if stmts2:
-            self.append(Node_ELSE)
-            self.append(Node_LBRACE)
             self.append(stmts2)
-            self.append(Node_RBRACE)
 
 
 class WhileStmtNode(Node):
     """
     whileStmt   ::=
-    <WHILE> <LPAREN> condition <RPAREN> <LBRACE> statements <RBRACE>
+    <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
     """
 
     def __init__(self, cond, stmts):
         super(WhileStmtNode, self).__init__('WhileStmt')
-        self.append(Node_WHILE)
-        self.append(Node_LPAREN)
         self.append(cond)
-        self.append(Node_RPAREN)
-        self.append(Node_LBRACE)
         self.append(stmts)
-        self.append(Node_RBRACE)
-
-
-class ReadStmtNode(Node):
-    """
-    readStmt    ::=	<READ> <LPAREN> <ID> <RPAREN> <SEMICOLON>
-    """
-
-    def __init__(self, _id):
-        super(ReadStmtNode, self).__init__('ReadStmt')
-        self.append(Node_READ)
-        self.append(Node_LPAREN)
-        self.append(_id)
-        self.append(Node_RPAREN)
-        self.append(Node_SEMICOLON)
-
-
-class WriteStmtNode(Node):
-    """
-    writeStmt   ::=	<WRITE> <LPAREN> expression <RPAREN> <SEMICOLON>
-    """
-
-    def __init__(self, expr):
-        super(WriteStmtNode, self).__init__('WriteStmt')
-        self.append(Node_WRITE)
-        self.append(Node_LPAREN)
-        self.append(expr)
-        self.append(Node_RPAREN)
-        self.append(Node_SEMICOLON)
 
 
 class AssignStmtNode(Node):
@@ -224,9 +326,7 @@ class AssignStmtNode(Node):
         self.append(_id)
         if arr:
             self.append(arr)
-        self.append(Node_ASSIGN)
         self.append(expr)
-        self.append(Node_SEMICOLON)
 
 
 class DeclareStmtNode(Node):
@@ -234,16 +334,12 @@ class DeclareStmtNode(Node):
     declareStmt ::=	(<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
     """
 
-    def __init__(self, literal, id_arr_list):
+    def __init__(self, id_arr_list):
         super(DeclareStmtNode, self).__init__('DeclareStmt')
-        self.append(literal)
         for pair in id_arr_list:
             self.append(pair[0])
             if pair[1]:
                 self.append(pair[1])
-            self.append(Node_COMMA)
-        self.pop()
-        self.append(Node_SEMICOLON)
 
 
 class ConditionNode(Node):
@@ -297,9 +393,7 @@ class FactorNode(Node):
         if literal:
             self.append(literal)
         elif expr:
-            self.append(Node_LPAREN)
             self.append(expr)
-            self.append(Node_RPAREN)
         else:
             self.append(_id)
             if arr:
@@ -313,9 +407,7 @@ class ArrayNode(Node):
 
     def __init__(self, _id=None, literal=None):
         super(ArrayNode, self).__init__('Array')
-        self.append(Node_LBRACKET)
         self.append(_id or literal)
-        self.append(Node_RBRACKET)
 
 
 class CompNode(Node):
@@ -346,31 +438,3 @@ class MulNode(Node):
     def __init__(self, op):
         super(MulNode, self).__init__('Multiply')
         self.append(op)
-
-
-# pass these nodes when appending to whose parent,
-# and deepcopy them in the function Node.append()
-Node_IF = LeafNode(tokens.Token_IF)
-Node_ELSE = LeafNode(tokens.Token_ELSE)
-Node_WHILE = LeafNode(tokens.Token_WHILE)
-Node_READ = LeafNode(tokens.Token_READ)
-Node_WRITE = LeafNode(tokens.Token_WRITE)
-Node_INT = LeafNode(tokens.Token_INT)
-Node_REAL = LeafNode(tokens.Token_REAL)
-Node_PLUS = LeafNode(tokens.Token_PLUS)
-Node_MINUS = LeafNode(tokens.Token_MINUS)
-Node_TIMES = LeafNode(tokens.Token_TIMES)
-Node_DIVIDE = LeafNode(tokens.Token_DIVIDE)
-Node_ASSIGN = LeafNode(tokens.Token_ASSIGN)
-Node_GT = LeafNode(tokens.Token_GT)
-Node_LT = LeafNode(tokens.Token_LT)
-Node_NEQUAL = LeafNode(tokens.Token_NEQUAL)
-Node_EQUAL = LeafNode(tokens.Token_EQUAL)
-Node_LPAREN = LeafNode(tokens.Token_LPAREN)
-Node_RPAREN = LeafNode(tokens.Token_RPAREN)
-Node_LBRACE = LeafNode(tokens.Token_LBRACE)
-Node_RBRACE = LeafNode(tokens.Token_RBRACE)
-Node_LBRACKET = LeafNode(tokens.Token_LBRACKET)
-Node_RBRACKET = LeafNode(tokens.Token_RBRACKET)
-Node_COMMA = LeafNode(tokens.Token_COMMA)
-Node_SEMICOLON = LeafNode(tokens.Token_SEMICOLON)
