@@ -72,7 +72,7 @@ TYPE = {
     'GT': 271, 'EQUAL': 272, 'NEQUAL': 273, 'LPAREN': 274, 'RPAREN': 275,
     'LBRACE': 276, 'RBRACE': 277, 'LBRACKET': 278, 'RBRACKET': 279,
     'COMMA': 283, 'SEMICOLON': 284, 'ID': 287,
-    'INT_LITERAL': 288, 'REAL_LITERAL': 289
+    'INT_LITERAL': 288, 'REAL_LITERAL': 289, 'RETURN': 290, 'VOID': 291
 }
 
 Token_IF = ReservedToken('if', 'IF')
@@ -82,6 +82,8 @@ Token_READ = ReservedToken('read', 'READ')
 Token_WRITE = ReservedToken('write', 'WRITE')
 Token_INT = ReservedToken('int', 'INT')
 Token_REAL = ReservedToken('real', 'REAL')
+Token_RETURN = ReservedToken('return', 'RETURN')
+Token_VOID = ReservedToken('void', 'VOID')
 
 Token_PLUS = Token('+', 'PLUS')
 Token_MINUS = Token('-', 'MINUS')
@@ -108,7 +110,8 @@ Token_Identifier = Identifier(';')
 
 TOKEN_RESERVED = {
     'if': Token_IF, 'else': Token_ELSE, 'while': Token_WHILE, 'read': Token_READ,
-    'write': Token_WRITE, 'int': Token_INT, 'real': Token_REAL
+    'write': Token_WRITE, 'int': Token_INT, 'real': Token_REAL, 'return': Token_RETURN,
+    'void': Token_VOID
 }
 TOKEN_NON_CONF = {
     '+': Token_PLUS, '-': Token_MINUS, '*': Token_TIMES, '>': Token_GT,

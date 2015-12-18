@@ -9,7 +9,7 @@ is based on it although CMM is very simple.
 
 We maintain a input buffer to enable lookahead mechanism.
 When read a useless char, put it to the input buffer, where we can read char later.
-A char is popped from the input buffer when it is read,
+A char is popped from the input buffer after it is read,
 and when the buffer is empty, we read from input source instead.
 
 To make error prompting possible, we use a counter to record the lines we have read,
@@ -27,7 +27,7 @@ __author__ = 'hejunjie'
 
 # we use 'rU' to read a file and
 # append '\n' to the end of per line
-# when read from keyboard, so '\r' is left out
+# when read from keyboard. So '\r' is left out
 _IGNORE = ['\t', '\n', ' ']
 
 
@@ -46,9 +46,9 @@ class EOF(object):
         return False
 
 
-class InValidTokenError(Exception):
+class InvalidTokenError(Exception):
     """
-    When encountered with an invalid token in lexer or parser,
+    When encountered an invalid token in lexer or parser,
     raise an InvalidTokenError to stop analysing.
 
     Invoker should catch this exception
@@ -60,9 +60,9 @@ class Lexer(object):
     def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr):
         """
         Those streams will be closed at last by parser.
-        :param stdin: the source code input stream
+        :param stdin:  the source code input stream
         :param stdout: the standard output stream
-        :param stderr:  the standard error stream
+        :param stderr: the standard error stream
         :return:
         """
         self.stdin = stdin
@@ -247,4 +247,4 @@ class Lexer(object):
         self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
 
         # sys.exit(0)
-        raise InValidTokenError()
+        raise InvalidTokenError()
