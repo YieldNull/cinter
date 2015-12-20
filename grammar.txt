@@ -40,28 +40,29 @@ INT_LITERAL ::=	["1"-"9"] (<DIGIT>)* | "0"
 REAL_LITERAL::=	<INT_LITERAL> ( "."( <INT_LITERAL> )+ )?
 
 program	    ::=	exterStmts
-exterStmts  ::= ( declareStmt | funcDeclStmt )+
-innerStmts  ::= ( declareStmt | assignStmt | ifStmt | whileStmt | funcCallStmt | returnStmt )*
+exterStmts  ::= ( declareStmt | FuncDefStmt)*
+innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt | returnStmt )*
 
-declareStmt ::=	( <INT> | <REAL> ) <ID> [array] ( <COMMA> <ID> [array] )* <SEMICOLON>
-assignStmt  ::=	<ID> [array] <ASSIGN> expression <SEMICOLON>
+declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
 ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
-whileStmt   ::=	<WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
+whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
 
-funcDeclStmt        ::= returnType <ID> <LPAREN> funcDeclParams  <RPAREN> <LBRACE> innerStmts <LBRACE>
-funcCallStmt        ::= <ID> <LPAREN> funcCallParams  <RPAREN> <SEMICOLON>
-funcDeclParam       ::= ( <INT> | <REAL> ) <ID>[array]
-funcDeclParamList   ::= ( funcDeclParam ( <COMMA> funcDeclParam )* )?
-funcCallParamList   ::= ( <ID>  ( <COMMA> <ID> )* )?
+funcDefStmt         ::= returnType  <ID>  <LPAREN> ( FuncDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
+funcDefParam        ::=  dataType <ID>
+funcDefParamList    ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
+funcCallStmt        ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
+funcCallParamList   ::= ( expr   ( <COMMA> expr  )* | <VOID> )
+funcType            ::= <VOID>  | dataType
 returnStmt          ::= <RETURN> expression <SEMICOLON>
-returnType          ::= ( <INT> | <REAL> | <VOID>)
 
-array 	::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
+dataType    ::= ( <INT> | <REAL> ) (array)?
+array       ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
 
 condition	::=	expression compOp expression
 expression  ::=	term (addOp term)*
 term	    ::=	factor (mulOp factor)*
-factor	    ::=	<REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
+factor	    ::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
 
 compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
 addOp	    ::=	<PLUS> | <MINUS>

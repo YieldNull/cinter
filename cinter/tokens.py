@@ -109,8 +109,8 @@ Token_RealLiteral = RealLiteral(0.0)
 Token_Identifier = Identifier(';')
 
 TOKEN_RESERVED = {
-    'if': Token_IF, 'else': Token_ELSE, 'while': Token_WHILE, 'read': Token_READ,
-    'write': Token_WRITE, 'int': Token_INT, 'real': Token_REAL, 'return': Token_RETURN,
+    'if': Token_IF, 'else': Token_ELSE, 'while': Token_WHILE,
+    'int': Token_INT, 'real': Token_REAL, 'return': Token_RETURN,
     'void': Token_VOID
 }
 TOKEN_NON_CONF = {

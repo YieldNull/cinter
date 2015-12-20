@@ -41,7 +41,12 @@ class Node(object):
         Return the child item at index(row) in the sub row
         :param row:
         """
-        return self.childItems[row]
+        try:
+            c = self.childItems[row]
+        except IndexError:
+            return None
+        else:
+            return c
 
     def childCount(self):
         return len(self.childItems)
@@ -57,6 +62,10 @@ class Node(object):
         if self.parent:
             return self.parent.childItems.index(self)
         return 0
+
+    def brother(self):
+        index = self.indexInParent()
+        return self.childAt(index + 1)
 
     def gen(self):
         """
@@ -148,6 +157,12 @@ class LiteralNode(LeafNode):
         self.type = t.type
 
 
+class DataTypeNode(LiteralNode):
+    def __init__(self, _type, arr):
+        super(DataTypeNode, self).__init__(_type)
+        self.arr = arr
+
+
 class IdNode(LeafNode):
     """
     An Id node which needs to record the **type** of it.
@@ -155,11 +170,26 @@ class IdNode(LeafNode):
     Type means 'int','real', 'array' or 'function name'?
     """
 
-    def __init__(self, _id, _type=None):
-        assert isinstance(_id, tokens.Token)
-        assert _type is None or isinstance(_type, tokens.Token)
+    def __init__(self, _id):
+        assert isinstance(_id, tokens.Identifier)
         super(IdNode, self).__init__(_id)
-        self.type = _type.type
+
+
+class ArrayNode(Node):
+    """
+    array   ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
+    """
+
+    def __init__(self, _id=None, literal=None):
+        super(ArrayNode, self).__init__('Array')
+        assert not (_id and literal)
+
+        if _id:
+            assert isinstance(_id, IdNode)
+            self.append(_id)
+        if literal:
+            assert isinstance(literal, LiteralNode)
+            self.append(literal)
 
 
 class VoidParamNode(Node):
@@ -168,7 +198,7 @@ class VoidParamNode(Node):
     """
 
     def __init__(self):
-        super(VoidParamNode, self).__init__('Void')
+        super(VoidParamNode, self).__init__('VoidParam')
 
 
 class EmptyBodyNode(Node):
@@ -176,7 +206,7 @@ class EmptyBodyNode(Node):
     Empty innerStmts body.
     """
 
-    def __int__(self):
+    def __init__(self):
         super(EmptyBodyNode, self).__init__('EmptyBody')
 
 
@@ -186,7 +216,7 @@ class EmptyBodyNode(Node):
 
 class ExterStmtsNode(Node):
     """
-    exterStmts  ::= ( declareStmt | funcDeclStmt )*
+    exterStmts  ::= ( declareStmt | funcDefStmt )*
     """
 
     def __init__(self, stmt_list):
@@ -195,41 +225,39 @@ class ExterStmtsNode(Node):
             self.append(stmt)
 
 
-class InnerStmtsNode(Node):
+class FuncDefStmtNode(Node):
     """
-    innerStmts   ::=
-    ( declareStmt | assignStmt | ifStmt | whileStmt | funcCallStmt | returnStmt )*
-    """
-
-    def __init__(self, stmt_list):
-        super(InnerStmtsNode, self).__init__('InnerStmts')
-        if len(stmt_list) > 0:
-            for stmt in stmt_list:
-                self.append(stmt)
-        else:
-            self.append(EmptyBodyNode())
-
-
-class FuncDeclStmtNode(Node):
-    """
-    funcDeclStmt ::= ( <INT> | <REAL> | <VOID>) [ array ] <ID>
-                <LPAREN> ( funcDeclParamList )?  <RPAREN> <LBRACE> innerStmts <LBRACE>
+    funcDefStmt ::= returnType  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
     """
 
-    def __init__(self, _id, params, innerStmts, arr=None):
-        super(FuncDeclStmtNode, self).__init__('FuncDeclStmt')
+    def __init__(self, rtype, _id, params, innerStmts):
+        super(FuncDefStmtNode, self).__init__('FuncDefStmt')
+
+        self.append(rtype)
         self.append(_id)
-        if arr:
-            self.append(arr)
         if params is None:
             params = VoidParamNode()
         self.append(params)
         self.append(innerStmts)
 
 
+class DeclareStmtNode(Node):
+    """
+    declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+    """
+
+    def __init__(self, data_type, id_list):
+        super(DeclareStmtNode, self).__init__('DeclareStmt')
+        assert isinstance(data_type, DataTypeNode)
+
+        self.append(data_type)
+        for _id in id_list:
+            self.append(_id)
+
+
 class FuncCallStmtNode(Node):
     """
-    funcCallStmt    ::= <ID> <LPAREN> funcCallParams  <RPAREN> <SEMICOLON>
+    funcCallStmt    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
     """
 
     def __init__(self, _id, param):
@@ -240,43 +268,61 @@ class FuncCallStmtNode(Node):
         self.append(param)
 
 
-class FuncDeclParam(Node):
+class FuncDefParam(Node):
     """
-    funcDeclParam   ::= ( <INT> | <REAL> | <VOID>) <ID>[array]
+    funcDefParam   ::=  dataType <ID>
     """
 
-    def __init__(self, _id, arr=None):
-        super(FuncDeclParam, self).__init__('FuncDeclParam')
+    def __init__(self, data_type, _id):
+        super(FuncDefParam, self).__init__('FuncDefParam')
+        assert isinstance(data_type, DataTypeNode)
         assert isinstance(_id, IdNode)
+
+        self.append(data_type)
         self.append(_id)
-        if arr:
-            self.append(arr)
 
 
-class FuncDeclParamList(Node):
+class FuncDefParamList(Node):
     """
-    funcDeclParamList  ::= ( funcDeclParam ( <COMMA> funcDeclParam )* )?
+    funcDefParamList  ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
     """
 
-    def __init__(self, decl_param_list):
-        super(FuncDeclParamList, self).__init__('FuncDeclParams')
-        if not decl_param_list:
-            self.append(VoidParamNode)
+    def __init__(self, params):
+        super(FuncDefParamList, self).__init__('FuncDefParams')
+        if not params:
+            self.append(VoidParamNode())
         else:
-            for param in decl_param_list:
+            for param in params:
+                assert isinstance(param, FuncDefParam)
                 self.append(param)
 
 
 class FuncCallParamList(Node):
     """
-    funcCallParams  ::= <ID>  ( <COMMA> <ID> )*
+    funcCallParamList  ::= ( expr   ( <COMMA> expr  )* | <VOID> )
     """
 
-    def __init__(self, id_list):
+    def __init__(self, params):
         super(FuncCallParamList, self).__init__('FuncCallParamList')
-        for _id in id_list:
-            assert isinstance(_id, IdNode)
-            self.append(_id)
+        if not params:
+            self.append(VoidParamNode())
+        else:
+            for param in params:
+                assert isinstance(param, ExprNode)
+                self.append(param)
+
+
+class FuncTypeNode(Node):
+    """
+    returnType ::= <VOID>  | dataType
+    """
+
+    def __init__(self, _type):
+        super(FuncTypeNode, self).__init__('ReturnType')
+        assert isinstance(_type, DataTypeNode)
+
+        self.type = _type.type
+        self.token = _type.token
 
 
 class ReturnStmtNode(Node):
@@ -287,6 +333,20 @@ class ReturnStmtNode(Node):
     def __init__(self, expr):
         super(ReturnStmtNode, self).__init__('ReturnStmt')
         self.append(expr)
+
+
+class InnerStmtsNode(Node):
+    """
+    innerStmts   ::= ( declareStmt | assignStmt | ifStmt | whileStmt | funcCallStmt | returnStmt )*
+    """
+
+    def __init__(self, stmt_list):
+        super(InnerStmtsNode, self).__init__('InnerStmts')
+        if len(stmt_list) > 0:
+            for stmt in stmt_list:
+                self.append(stmt)
+        else:
+            self.append(EmptyBodyNode())
 
 
 class IfStmtNode(Node):
@@ -317,7 +377,7 @@ class WhileStmtNode(Node):
 
 class AssignStmtNode(Node):
     """
-    assignStmt  ::=	<ID> [array] <ASSIGN> expression <SEMICOLON>
+    assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
     """
 
     def __init__(self, _id, expr, arr=None):
@@ -327,19 +387,6 @@ class AssignStmtNode(Node):
         if arr:
             self.append(arr)
         self.append(expr)
-
-
-class DeclareStmtNode(Node):
-    """
-    declareStmt ::=	(<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* <SEMICOLON>
-    """
-
-    def __init__(self, id_arr_list):
-        super(DeclareStmtNode, self).__init__('DeclareStmt')
-        for pair in id_arr_list:
-            self.append(pair[0])
-            if pair[1]:
-                self.append(pair[1])
 
 
 class ConditionNode(Node):
@@ -384,8 +431,7 @@ class TermNode(Node):
 
 class FactorNode(Node):
     """
-    factor	::=
-    <REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
+    factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
     """
 
     def __init__(self, literal=None, expr=None, _id=None, arr=None):
@@ -398,16 +444,6 @@ class FactorNode(Node):
             self.append(_id)
             if arr:
                 self.append(arr)
-
-
-class ArrayNode(Node):
-    """
-    array 	::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
-    """
-
-    def __init__(self, _id=None, literal=None):
-        super(ArrayNode, self).__init__('Array')
-        self.append(_id or literal)
 
 
 class CompNode(Node):

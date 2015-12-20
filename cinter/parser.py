@@ -2,6 +2,32 @@
 # coding:utf-8
 
 """
+Using a recursive descent parser for analysing.
+
+Similar to lexer, a reading buffer is set.
+We can `get` a token from lexer and `unget` it to the buffer.
+
+When parsing,
+`expect(token)` means that the following token must be the same as the provided one,
+    or it would raise an error.
+`match(token)` means we expect a token but return None instead of raising an error when mismatching.
+
+In Parser:
+    _parse_* (check=False) means that
+        When encountering a mismatch, if check is True, it returns None. Otherwise raising an error.
+
+    _match_*() means that
+        _parse_* setting check=True
+
+    Attention:
+        Param `check` is only enabled when judging whether entering into the syntax state or not.
+        After entering it, `check` will be ignored.
+
+Each parsing function return a Node which is defined in nodes.py
+Finally it will gen a `ExterStmtsNode` and that is the root of the AST tree.
+
+To connect with GUI, we need to redirect std streams.
+
 create on '10/5/15 10:36 PM'
 """
 import sys
@@ -98,7 +124,6 @@ class Parser(object):
         :return:
         """
         self.buff.append(t or self.ahead)
-        self.ahead = None
 
     def _match(self, t):
         """
@@ -156,7 +181,7 @@ class Parser(object):
 
         self.stderr.write('%s\n' % msg)
         self.stderr.write('%s\n' % ''.join(self.lexer.read))
-        self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
+        self.stderr.write('%s' % ' ' * (offset - 1) + '^')
         if isinstance(expect, Token):
             expect = (expect,)
         if expect:
@@ -166,87 +191,73 @@ class Parser(object):
 
     def _parse_exter_stmts(self):
         """
-        exterStmts  ::= ( declareStmt | funcDeclStmt )*
+        exterStmts  ::= ( declareStmt | FuncDefStmt)*
 
-        (<INT> | <REAL>) <ID>[array] ( <COMMA> <ID> [array] )* ...
-        VS
-        ( ( <INT> | <REAL> ) | <LBRACKET> <LBRACKET> ) | <VOID> )  <ID> <LPAREN> ...
+        The beginning of parsing.
 
-        Parse begin.............................................
+        Judge which stmt to parse in the loop.
+            declare ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+            VS
+            funcDef  ::= (<VOID>  | dataType)  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> ...
         """
         stmts = []
         while self._get():
+            self._unget()
             if self.ahead == Token_VOID:
-                self._unget()
-                stmts.append(self._parse_stmt_func_decl())
+                stmts.append(self._parse_stmt_func_def())
             else:
-                _type = self.ahead
-                if self._match(Token_LBRACKET):
-                    self._unget()
-                    self._unget(_type)
-                    stmts.append(self._parse_stmt_func_decl())
+                _type = self._parse_data_type()
+                _id = IdNode(self._expect(Token_Identifier))
+                m = self._match(Token_LPAREN)
+                self._unget()
+                if m:
+                    stmts.append(self._parse_stmt_func_def(_type=_type, _id=_id))
                 else:
-                    self._unget()
-                    _id = self._expect(Token_Identifier)
-                    m = self._match(Token_LPAREN)
-                    self._unget()
-                    self._unget(_id)
-                    self._unget(_type)
-                    if m:
-                        stmts.append(self._parse_stmt_func_decl())
-                    else:
-                        stmts.append(self._parse_stmt_declare())
+                    stmts.append(self._parse_stmt_declare(_type=_type, _id=_id))
         return ExterStmtsNode(stmts)
 
-    def _parse_inner_stmts(self):
+    def _parse_stmt_func_def(self, _type=None, _id=None):
         """
-        innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt | returnStmt )*
+        funcDefStmt ::= returnType  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
         """
-        stmts = []
-        while self._get():
-            t = self.ahead
-            self._unget()
-            if t == Token_IF:
-                stmts.append(self._parse_stmt_if())
-            elif t == Token_WHILE:
-                stmts.append(self._parse_stmt_while())
-            elif t in [Token_INT, Token_REAL]:
-                stmts.append(self._parse_stmt_declare())
-            elif t == Token_RETURN:
-                stmts.append(self._parse_stmt_return())
-            elif isinstance(t, Identifier):
-                if self._match(Token_LPAREN):
-                    self._unget()
-                    self._parse_stmt_func_call()
-                else:
-                    self._unget()
-                    stmts.append(self._parse_stmt_assign())
-            else:
-                break
-        return InnerStmtsNode(stmts)
-
-    def _parse_stmt_func_decl(self):
-        """
-        funcDeclStmt ::= ( ( <INT> | <REAL> ) | <LBRACKET> <LBRACKET> ) | <VOID> )  <ID>
-                        <LPAREN> ( funcDeclParamList )?  <RPAREN> <LBRACE> innerStmts <LBRACE>
-        """
-        _type = self._expect([Token_INT, Token_REAL, Token_VOID])
-        arr = self._parse_arr()
-        if arr and _type == Token_VOID:
-            raise InvalidTokenError()
-
-        _id = self._expect(Token_Identifier)
+        if _type and _id:
+            rtype = FuncTypeNode(_type)
+        else:
+            rtype = self._parse_func_type()
+            _id = IdNode(self._expect(Token_Identifier))
         self._expect(Token_LPAREN)
 
         params = None
         if not self._match(Token_RPAREN):
             self._unget()
-            params = self._parse_func_decl_param_list()
-        self._expect(Token_RPAREN)
+            params = self._parse_func_def_param_list()
+            self._expect(Token_RPAREN)
         self._expect(Token_LBRACE)
         stmts = self._parse_inner_stmts()
-        self._expect(Token_LBRACE)
-        return FuncDeclStmtNode(IdNode(_id, _type), params, stmts, arr)
+        self._expect(Token_RBRACE)
+        return FuncDefStmtNode(rtype, _id, params, stmts)
+
+    def _parse_stmt_declare(self, _type=None, _id=None):
+        """
+        declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+        """
+        id_list = []
+        if _type and _id:
+            data_type = _type
+            id_list.append(_id)
+        else:
+            data_type = self._parse_data_type()
+            _id = self._expect(Token_Identifier)
+            id_list.append(IdNode(_id))
+        while True:
+            if self._match(Token_COMMA):
+                _id = self._expect(Token_Identifier)
+                id_list.append((IdNode(_id)))
+            else:
+                self._unget()
+                break
+        self._expect(Token_SEMICOLON)
+        return DeclareStmtNode(data_type, id_list)
 
     def _parse_stmt_func_call(self):
         """
@@ -259,7 +270,7 @@ class Parser(object):
         if not self._match(Token_RPAREN):
             self._unget()
             params = self._parse_func_call_param_list()
-        self._expect(Token_RPAREN)
+            self._expect(Token_RPAREN)
         self._expect(Token_SEMICOLON)
         return FuncCallStmtNode(IdNode(_id), params)
 
@@ -272,48 +283,104 @@ class Parser(object):
         self._expect(Token_SEMICOLON)
         return ReturnStmtNode(expr)
 
-    def _parse_func_decl_param_list(self):
+    def _parse_func_def_param(self):
         """
-        funcDeclParamList  ::= funcDeclParam ( <COMMA> funcDeclParam )*
+        funcDefParam   ::=  dataType <ID>
         """
-        params = [self._parse_func_decl_param()]
+        data_type = self._parse_data_type()
+        _id = self._expect(Token_Identifier)
+        return FuncDefParam(data_type, IdNode(_id))
+
+    def _parse_func_def_param_list(self):
+        """
+        funcDefParamList  ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
+        """
+        if self._match(Token_VOID):
+            return FuncDefParamList(None)
+
+        self._unget()
+        params = [self._parse_func_def_param()]
         while True:
             if self._match(Token_COMMA):
-                params.append(self._parse_func_decl_param())
+                params.append(self._parse_func_def_param())
             else:
                 self._unget()
                 break
-        return FuncDeclParamList(params)
+        return FuncDefParamList(params)
 
     def _parse_func_call_param_list(self):
         """
-        funcCallParams  ::=  <ID>  ( <COMMA> <ID> )*
+        funcCallParamList  ::= ( expr   ( <COMMA> expr  )* | <VOID> )
         """
-        id_list = []
-        self._expect(Token_Identifier)
-        id_list.append(IdNode(self.ahead))
+        if self._match(Token_VOID):
+            return FuncCallParamList(None)
+
+        self._unget()
+        params = [self._parse_expr()]
         while True:
             if self._match(Token_COMMA):
-                self._expect(Token_Identifier)
-                id_list.append(self.ahead)
+                params.append(self._parse_expr())
             else:
                 self._unget()
                 break
-        return FuncCallParamList(id_list)
+        return FuncCallParamList(params)
 
-    def _parse_func_decl_param(self):
+    def _parse_func_type(self):
         """
-        funcDeclParam   ::= ( <INT> | <REAL> | <VOID>) <ID>[array]
+        funcType ::= <VOID>  | dataType
         """
         _type = self._expect([Token_INT, Token_REAL, Token_VOID])
-        _id = self._expect(Token_Identifier)
-        arr = self._parse_arr(check=True)
-        return FuncDeclParam(IdNode(_id, _type), arr)
+        if _type == Token_VOID:
+            return FuncTypeNode(DataTypeNode(_type, None))
+        else:
+            self._unget()
+            data_type = self._parse_data_type()
+            return FuncTypeNode(data_type)
+
+    def _parse_inner_stmts(self):
+        """
+        innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt | returnStmt )*
+        """
+        stmts = []
+        while self._get():
+            t = self.ahead
+            if t == Token_IF:
+                self._unget()
+                stmts.append(self._parse_stmt_if())
+            elif t == Token_WHILE:
+                self._unget()
+                stmts.append(self._parse_stmt_while())
+            elif t in [Token_INT, Token_REAL]:
+                self._unget()
+                stmts.append(self._parse_stmt_declare())
+            elif t == Token_RETURN:
+                self._unget()
+                stmts.append(self._parse_stmt_return())
+            elif isinstance(t, Identifier):
+                m = self._match(Token_LPAREN)
+                self._unget()
+                self._unget(t)
+                if m:
+                    stmts.append(self._parse_stmt_func_call())
+                else:
+                    stmts.append(self._parse_stmt_assign())
+            else:
+                self._unget()
+                break
+        return InnerStmtsNode(stmts)
+
+    def _parse_data_type(self):
+        """
+        dataType    ::= ( <INT> | <REAL> ) (array)?
+        """
+        _type = self._expect([Token_INT, Token_REAL])
+        arr = self._match_arr()
+        return DataTypeNode(_type, arr)
 
     def _parse_stmt_if(self):
         """
-        ifStmt  ::=
-        <IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts  <RBRACE> )?
+        ifStmt  ::= <IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
+                    ( <ELSE> <LBRACE> innerStmts  <RBRACE> )?
         :return:
         """
         self._expect(Token_IF)
@@ -334,8 +401,7 @@ class Parser(object):
 
     def _parse_stmt_while(self):
         """
-        whileStmt   ::=
-        <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
+        whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
         :return:
         """
         self._expect(Token_WHILE)
@@ -349,42 +415,15 @@ class Parser(object):
 
     def _parse_stmt_assign(self):
         """
-        assignStmt  ::=
-        <ID> [array] <ASSIGN> expression <SEMICOLON>
-        :return:
+        assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
         """
         self._expect(Token_Identifier)
         t = self.ahead
-        arr = None
-        if not self._match(Token_ASSIGN):
-            self._unget()
-            arr = self._parse_arr()
-            self._expect(Token_ASSIGN)
+        arr = self._match_arr()
+        self._expect(Token_ASSIGN)
         expr = self._parse_expr()
         self._expect(Token_SEMICOLON)
         return AssignStmtNode(IdNode(t), expr, arr)
-
-    def _parse_stmt_declare(self):
-        """
-        declareStmt ::=
-        ( <INT> | <REAL> ) <ID> [ array ] ( <COMMA> <ID> [ array ] )* <SEMICOLON>
-        """
-        id_arr_list = []
-        _type = self._expect((Token_INT, Token_REAL))
-        self._expect(Token_Identifier)
-        _id = IdNode(self.ahead, _type)
-        arr = self._parse_arr(True)  # may be None
-        id_arr_list.append((_id, arr))
-        while True:
-            if self._match(Token_COMMA):
-                _id = self._expect(Token_Identifier)
-                arr = self._parse_arr(True)  # may be None
-            else:
-                self._unget()
-                break
-            id_arr_list.append((IdNode(_id, _type), arr))
-        self._expect(Token_SEMICOLON)
-        return DeclareStmtNode(id_arr_list)
 
     def _parse_cond(self):
         """
@@ -404,7 +443,7 @@ class Parser(object):
         term = self._parse_term()
         l = []
         while True:
-            add = self._parse_op_add(True)
+            add = self._match_op_add()
             if add:
                 t = self._parse_term()
             else:
@@ -421,7 +460,7 @@ class Parser(object):
         l = []
         factor = self._parse_factor()
         while True:
-            m = self._parse_op_mul(True)
+            m = self._match_op_mul()
             if m:
                 f = self._parse_factor()
             else:
@@ -432,9 +471,7 @@ class Parser(object):
 
     def _parse_factor(self):
         """
-        factor	::=
-        <REAL_LITERAL> | <INT_LITERAL> | <ID> | <LPAREN> expression <RPAREN> | <ID> array
-        :return:
+        factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
         """
         self._expect((Token_RealLiteral, Token_IntLiteral, Token_Identifier, Token_LPAREN))
         t = self.ahead
@@ -443,67 +480,57 @@ class Parser(object):
             self._expect(Token_RPAREN)
             return FactorNode(expr=expr)
         elif self.ahead.type == Token_Identifier.type:
-            arr = self._parse_arr(True)
+            arr = self._match_arr()
             return FactorNode(_id=IdNode(t), arr=arr)
         else:
             return FactorNode(literal=LiteralNode(t))
 
-    def _parse_arr(self, check=False):
-        """
-        array   ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) <RBRACKET>
-        :return:
-        """
-        if check:
-            if self._match(Token_LBRACKET):
-                self._expect((Token_IntLiteral, Token_Identifier))
-                t = self.ahead
-                self._expect(Token_RBRACKET)
-            else:
-                self._unget()
-                return None
-
-        else:
-            self._expect(Token_LBRACKET)
-            self._expect((Token_IntLiteral, Token_Identifier))
-            t = self.ahead
-            self._expect(Token_RBRACKET)
-
-        if t == Token_IntLiteral:
-            return ArrayNode(literal=IntLiteral(t))
-        else:
-            return ArrayNode(_id=IdNode(t))
-
     def _parse_op_comp(self):
         """
         compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
-        :return:
         """
         self._expect((Token_LT, Token_GT, Token_EQUAL, Token_NEQUAL))
         return CompNode(LeafNode(self.ahead))
 
-    def _parse_op_add(self, check=False):
+    def _match_arr(self):
+        """
+        array   ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) ? <RBRACKET>
+
+        If next is array which starts with <LBRACKET>, return the ArrayNode.
+        Else return None.
+
+        Error should be raised when the array is under parsing.
+        """
+
+        m = self._match(Token_LBRACKET)
+        if not m:
+            self._unget()
+            return None
+
+        if self._match(Token_RBRACKET):
+            return ArrayNode()
+        else:
+            self._unget()
+            index = self._expect([Token_IntLiteral, Token_Identifier])
+            self._expect(Token_RBRACKET)
+            if isinstance(index, Identifier):
+                return ArrayNode(_id=IdNode(index))
+            else:
+                return ArrayNode(literal=LiteralNode(index))
+
+    def _match_op_add(self):
         """
         addOp	    ::=	<PLUS> | <MINUS>
-        :param check:
-        :return:
         """
-        if check:
-            if self._match((Token_PLUS, Token_MINUS)):
-                return AddNode(LeafNode(self.ahead))
-        else:
-            self._expect((Token_PLUS, Token_MINUS))
+        if self._match((Token_PLUS, Token_MINUS)):
+            return AddNode(LeafNode(self.ahead))
 
-    def _parse_op_mul(self, check=False):
+    def _match_op_mul(self):
         """
         mulOp	    ::=	<TIMES> | <DIVIDE>
-        :param check:
-        :return:
         """
-        if check:
-            if self._match((Token_TIMES, Token_DIVIDE)):
-                return MulNode(LeafNode(self.ahead))
-        else:
-            self._expect((Token_TIMES, Token_DIVIDE))
+        if self._match((Token_TIMES, Token_DIVIDE)):
+            return MulNode(LeafNode(self.ahead))
 
 
 def _read_keyboard():
