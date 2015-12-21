@@ -31,11 +31,41 @@ To connect with GUI, we need to redirect std streams.
 create on '10/5/15 10:36 PM'
 """
 import sys
+
 from tokens import *
 from nodes import *
+from stable import STable
 from lexer import Lexer, InvalidTokenError
 
 __author__ = 'hejunjie'
+
+
+def _read_keyboard():
+    """
+    read source from keyboard
+    :return:
+    """
+    fileobj = StringIO.StringIO()
+    while True:
+        try:
+            line = raw_input()
+        except EOFError:
+            break
+        # add '\n' to each line
+        fileobj.write(line + '\n')
+
+    content = fileobj.getvalue()
+    fileobj.close()
+    return StringIO.StringIO(content)
+
+
+def _read_file(path):
+    """
+    read source from file
+    :param path: path to file
+    :return:
+    """
+    return open(path, 'rU')
 
 
 class Parser(object):
@@ -62,9 +92,9 @@ class Parser(object):
         self.compiler_mode = compiler_mode
         self.execute_mode = execute_mode
 
-        self.syntaxTree = None
         self.tokenTree = TokenTree()
-
+        self.syntaxTree = None
+        self.stable = STable()
         self.ahead = None  # The token just read
         self.buff = []  # unget buffer
         self.currentLine = 0  # controller for printing lexer analysis result
@@ -95,7 +125,7 @@ class Parser(object):
         except InvalidTokenError:
             return None
         else:
-            self.stdout.write('%s\n' % self.syntaxTree.gen())
+            self.stdout.write('%s\n' % self.syntaxTree.str_tree())
             return self.syntaxTree, self.tokenTree.rootNode
         finally:
             self._close_stream()
@@ -532,33 +562,17 @@ class Parser(object):
         if self._match((Token_TIMES, Token_DIVIDE)):
             return MulNode(LeafNode(self.ahead))
 
-
-def _read_keyboard():
-    """
-    read source from keyboard
-    :return:
-    """
-    fileobj = StringIO.StringIO()
-    while True:
-        try:
-            line = raw_input()
-        except EOFError:
-            break
-        # add '\n' to each line
-        fileobj.write(line + '\n')
-
-    content = fileobj.getvalue()
-    fileobj.close()
-    return StringIO.StringIO(content)
-
-
-def _read_file(path):
-    """
-    read source from file
-    :param path: path to file
-    :return:
-    """
-    return open(path, 'rU')
+    def _check_semantics(self):
+        """
+        Semantic analysing using DFS.
+        """
+        stack = [self.syntaxTree]
+        while len(stack) > 0:
+            n = stack.pop()
+            n.gen_stable()
+            l = list(n.childItems)
+            l.reverse()
+            stack += l
 
 
 if __name__ == '__main__':

@@ -6,7 +6,8 @@ create on '11/9/15 12:54 PM'
 """
 import StringIO
 
-from cinter import tokens
+import tokens
+from stable import SObject, STypeFunc, STable
 
 __author__ = 'hejunjie'
 
@@ -67,9 +68,9 @@ class Node(object):
         index = self.indexInParent()
         return self.childAt(index + 1)
 
-    def gen(self):
+    def str_tree(self):
         """
-        Print tree with itself as the root node.
+        Print tree with itself as the root node using DFS.
         """
         stack = [self]
         stdout = StringIO.StringIO()
@@ -91,6 +92,15 @@ class Node(object):
             l.reverse()
             stack += l
         return stdout.getvalue()
+
+    def gen_stable(self):
+        return None
+
+    def gen_sobj(self):
+        return None
+
+    def gen_stype(self):
+        return None
 
 
 #####################################################
@@ -162,12 +172,12 @@ class DataTypeNode(LiteralNode):
         super(DataTypeNode, self).__init__(_type)
         self.arr = arr
 
+    def gen_stype(self):
+        pass
 
 class IdNode(LeafNode):
     """
     An Id node which needs to record the **type** of it.
-
-    Type means 'int','real', 'array' or 'function name'?
     """
 
     def __init__(self, _id):
@@ -224,6 +234,12 @@ class ExterStmtsNode(Node):
         for stmt in stmt_list:
             self.append(stmt)
 
+    def gen_stable(self):
+        stable = STable()
+        for child in self.childItems:
+            obj = child.gen_sobj()
+            stable.symbol_append(obj)
+
 
 class FuncDefStmtNode(Node):
     """
@@ -232,13 +248,15 @@ class FuncDefStmtNode(Node):
 
     def __init__(self, rtype, _id, params, innerStmts):
         super(FuncDefStmtNode, self).__init__('FuncDefStmt')
-
         self.append(rtype)
         self.append(_id)
         if params is None:
-            params = VoidParamNode()
+            params = FuncDefParamList(None)
         self.append(params)
         self.append(innerStmts)
+
+    def gen_sobj(self):
+        return SObject(self.childAt(1).lexeme, STypeFunc(self.childAt(1).gen_stype(), self.childAt(2)))
 
 
 class DeclareStmtNode(Node):
@@ -254,6 +272,9 @@ class DeclareStmtNode(Node):
         for _id in id_list:
             self.append(_id)
 
+    def gen_sobj(self):
+        return SObject()
+
 
 class FuncCallStmtNode(Node):
     """
@@ -266,6 +287,9 @@ class FuncCallStmtNode(Node):
         if param is None:
             param = VoidParamNode()
         self.append(param)
+
+    def gen_stable(self):
+        pass
 
 
 class FuncDefParam(Node):
@@ -324,6 +348,10 @@ class FuncTypeNode(Node):
         self.type = _type.type
         self.token = _type.token
 
+    def gen_stype(self):
+        # TODO
+        pass
+
 
 class ReturnStmtNode(Node):
     """
@@ -347,6 +375,9 @@ class InnerStmtsNode(Node):
                 self.append(stmt)
         else:
             self.append(EmptyBodyNode())
+
+    def new_stable(self):
+        return True
 
 
 class IfStmtNode(Node):
