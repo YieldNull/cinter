@@ -10,17 +10,21 @@ class RedefinedError(Exception):
     pass
 
 
+class SymbolNotDefinedError(Exception):
+    pass
+
+
 class SType(object):
     """
     Basic Symbol Type
     """
 
-    def __init__(self, _type):
+    def __init__(self, token):
         """
-        :param _type:  Token_INT or Token_REAL
+        :param token:  Token_INT or Token_REAL
         """
-        assert _type == tokens.Token_INT or _type == tokens.Token_REAL
-        self.type = _type
+        assert token in [tokens.Token_REAL, tokens.Token_INT, tokens.Token_VOID]
+        self.type = token
 
 
 class STypeArray(SType):
@@ -28,8 +32,8 @@ class STypeArray(SType):
     Array type
     """
 
-    def __init__(self, _type, size):
-        super(STypeArray, self).__init__(_type)
+    def __init__(self, token, size):
+        super(STypeArray, self).__init__(token)
         self.size = size
 
 
@@ -38,9 +42,8 @@ class STypeFunc(object):
     Function type
     """
 
-    def __init__(self, stype, params):
+    def __init__(self, stype, param_stypes):
         # assert isinstance(params, FuncDefParamList)
-        self.params = params
 
         if stype:
             assert isinstance(stype, SType)
@@ -49,7 +52,7 @@ class STypeFunc(object):
             self.stype = None  # void
 
 
-class SObject(object):
+class Symbol(object):
     """
     Symbol Object
     """
@@ -73,51 +76,6 @@ class STable(object):
         self.children = []  # children tables
         self.symbols = []  # symbols in the table
         self.tsindex = -1  # The Symbol index in parent after which the table was appended
-
-    def symbol_append(self, sobj):
-        """
-        Append table object
-        """
-        if self._symbol_has_defined(sobj):
-            raise RedefinedError()
-        else:
-            self.symbols.append(sobj)
-            sobj.table = self
-
-    def symbol_at_index(self, index):
-        try:
-            obj = self.symbols[index]
-        except IndexError:
-            return None
-        else:
-            return obj
-
-    def symbol_index(self, obj):
-        assert isinstance(obj, SObject)
-        return self.symbols.index(obj)
-
-    def _symbol_equal(self, obj1, obj2):
-        assert isinstance(obj1, SObject)
-        assert isinstance(obj2, SObject)
-
-        if obj1.name == obj2.name:
-            # TODO check type
-            pass
-        else:
-            return False
-
-    def _symbol_has_defined(self, obj, ends=None):
-        if not ends:
-            ends = len(self.symbols) - 1
-
-        for i in range(ends + 1):  # check self
-            if self._symbol_equal(self.parent.symbol_at_index(i), obj):
-                return True
-        else:  # check parent tables
-            if self.parent:
-                return self.parent._symbol_has_defined(obj, self.tsindex)
-            else:  # recursion ends at root table whose parent is None
-                return False
 
     def table_append(self, child):
         """
@@ -165,3 +123,66 @@ class STable(object):
             return None
         else:
             return c
+
+    def symbol_append(self, symbol):
+        """
+        Append table object
+        """
+        if self.symbol_has_defined(symbol):
+            raise RedefinedError()
+        else:
+            self.symbols.append(symbol)
+            symbol.table = self
+
+    def symbol_at_index(self, index):
+        try:
+            symbol = self.symbols[index]
+        except IndexError:
+            return None
+        else:
+            return symbol
+
+    def symbol_index(self, symbol):
+        assert isinstance(symbol, Symbol)
+        return self.symbols.index(symbol)
+
+    @staticmethod
+    def symbol_equal(symbol1, symbol2):
+        assert isinstance(symbol1, Symbol)
+        assert isinstance(symbol2, Symbol)
+
+        if symbol1.name == symbol2.name:
+            # TODO check type
+            pass
+        else:
+            return False
+
+    def symbol_same_name(self, name):
+        pass
+
+    def symbol_has_defined(self, symbol, ends=None):
+        """
+        check whether symbol has been defined or not.
+
+        :param symbol: the Symbol object
+        :param ends: searching in [0,ends] in the symbol list of current table.
+                    Used when searching in parent table whose value is `tsindex`
+        """
+        if not ends:
+            ends = len(self.symbols) - 1
+
+        for i in range(ends + 1):  # check self
+            if self.symbol_equal(self.parent.symbol_at_index(i), symbol):
+                return True
+        else:  # check parent tables
+            if self.parent:
+                return self.parent.symbol_has_defined(symbol, self.tsindex)
+            else:  # recursion ends at root table whose parent is None
+                return False
+
+    def symbol_invoke(self, symbol):
+        if not self.symbol_has_defined(symbol):
+            raise SymbolNotDefinedError()
+
+    def symbol_invoke_func(self, name, stype_list):
+        pass

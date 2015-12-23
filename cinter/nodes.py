@@ -7,7 +7,7 @@ create on '11/9/15 12:54 PM'
 import StringIO
 
 import tokens
-from stable import SObject, STypeFunc, STable
+from stable import Symbol, STypeFunc, STable, SType, STypeArray
 
 __author__ = 'hejunjie'
 
@@ -17,13 +17,13 @@ class Node(object):
     Basic node which is also used in QAbstractItemModel.
     """
 
-    def __init__(self, lexeme, parent=None):
-        self.lexeme = lexeme
+    def __init__(self, cate, parent=None):
+        self.cate = cate  # for print
         self.parent = parent
         self.childItems = []
 
     def __str__(self):
-        return self.lexeme
+        return self.cate
 
     def append(self, item):
         """
@@ -93,10 +93,8 @@ class Node(object):
             stack += l
         return stdout.getvalue()
 
-    def gen_stable(self):
-        return None
-
-    def gen_sobj(self):
+    def gen_stable(self, stable):
+        assert isinstance(stable, STable)
         return None
 
     def gen_stype(self):
@@ -147,11 +145,9 @@ class LeafNode(Node):
     A leaf node which does not have a child node.
     """
 
-    def __init__(self, t):
-        super(LeafNode, self).__init__(t.cate)
-
-        self.type = t.type
-        self.token = t
+    def __init__(self, token):
+        super(LeafNode, self).__init__(token.cate)
+        self.token = token
 
     def __str__(self):
         return '%s : "%s"' % (self.token.cate, self.token.lexeme)
@@ -162,27 +158,71 @@ class LiteralNode(LeafNode):
     A real or integer literal node.
     """
 
-    def __init__(self, t):
-        super(LiteralNode, self).__init__(t)
-        self.type = t.type
+    def __init__(self, token):
+        assert isinstance(token, tokens.IntLiteral) or isinstance(token, tokens.RealLiteral)
+        super(LiteralNode, self).__init__(token)
 
 
-class DataTypeNode(LiteralNode):
-    def __init__(self, _type, arr):
-        super(DataTypeNode, self).__init__(_type)
+class DataTypeNode(LeafNode):
+    """
+    dataType    ::=( <INT> | <REAL> ) (array)?
+    """
+
+    def __init__(self, token, arr=None):
+        super(LeafNode, self).__init__(token)
+        assert token in [tokens.Token_INT, tokens.Token_REAL]
+        assert arr is None or isinstance(arr, ArrayNode)
         self.arr = arr
 
     def gen_stype(self):
-        pass
+        if self.arr:
+            return STypeArray(self.token, self.arr.size)
+        else:
+            return SType(self.token)
+
 
 class IdNode(LeafNode):
-    """
-    An Id node which needs to record the **type** of it.
-    """
-
     def __init__(self, _id):
         assert isinstance(_id, tokens.Identifier)
         super(IdNode, self).__init__(_id)
+
+        self.name = self.token.lexeme
+        self.stype = None
+        self.type = None
+        self.arr = None
+
+    def set_stype(self, stype):
+        self.stype = stype
+
+    def update_stype(self, token, arr=None):
+        self.type = token
+        self.arr = arr
+
+    def gen_stype(self):
+        if not self.arr:
+            return SType(self.type)
+        else:
+            return STypeArray(self.type, self.arr.size)
+
+    def gen_symbol(self):
+        return Symbol(self.name, self.gen_stype())
+
+
+class FuncId(LeafNode):
+    def __init__(self, rtype, _id, param_stypes):
+        assert isinstance(rtype, ReturnTypeNode)
+        assert isinstance(_id, IdNode)
+        super(FuncId, self).__init__(_id.token)
+
+        self.rtype = rtype
+        self.name = _id.name
+        self.param_stypes = param_stypes
+
+    def gen_stype(self):
+        return STypeFunc(self.rtype.gen_stype(), self.param_stypes)
+
+    def gen_symbol(self):
+        return Symbol(self.name, self.gen_stype())
 
 
 class ArrayNode(Node):
@@ -199,7 +239,15 @@ class ArrayNode(Node):
             self.append(_id)
         if literal:
             assert isinstance(literal, LiteralNode)
+            assert isinstance(literal.token.lexeme, int)
             self.append(literal)
+            self.size = int(literal.token.lexeme)
+            self.index = self.size
+
+    def gen_stable(self, stable):
+        _id = self.childAt(0)
+        if isinstance(_id, IdNode):
+            stable.symbol_invoke(_id.gen_symbol())
 
 
 class VoidParamNode(Node):
@@ -234,12 +282,6 @@ class ExterStmtsNode(Node):
         for stmt in stmt_list:
             self.append(stmt)
 
-    def gen_stable(self):
-        stable = STable()
-        for child in self.childItems:
-            obj = child.gen_sobj()
-            stable.symbol_append(obj)
-
 
 class FuncDefStmtNode(Node):
     """
@@ -248,15 +290,19 @@ class FuncDefStmtNode(Node):
 
     def __init__(self, rtype, _id, params, innerStmts):
         super(FuncDefStmtNode, self).__init__('FuncDefStmt')
+
+        # set func_id type
+        self.funcId = FuncId(rtype.gen_stype(), _id, params.gen_stype())
+
         self.append(rtype)
-        self.append(_id)
+        self.append(self.funcId)
         if params is None:
             params = FuncDefParamList(None)
         self.append(params)
         self.append(innerStmts)
 
-    def gen_sobj(self):
-        return SObject(self.childAt(1).lexeme, STypeFunc(self.childAt(1).gen_stype(), self.childAt(2)))
+    def gen_stable(self, stable):
+        stable.symbol_append(self.funcId.gen_symbol())
 
 
 class DeclareStmtNode(Node):
@@ -268,12 +314,19 @@ class DeclareStmtNode(Node):
         super(DeclareStmtNode, self).__init__('DeclareStmt')
         assert isinstance(data_type, DataTypeNode)
 
+        self.stype = data_type.gen_stype()
+
         self.append(data_type)
         for _id in id_list:
+            assert isinstance(_id, IdNode)
             self.append(_id)
+            _id.set_stype(self.stype)  # set id type
 
-    def gen_sobj(self):
-        return SObject()
+        self.id_list = id_list
+
+    def gen_stable(self, stable):
+        for _id in self.id_list:
+            stable.symbol_append(_id.gen_symbol())
 
 
 class FuncCallStmtNode(Node):
@@ -281,15 +334,18 @@ class FuncCallStmtNode(Node):
     funcCallStmt    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
     """
 
-    def __init__(self, _id, param):
+    def __init__(self, _id, params):
         super(FuncCallStmtNode, self).__init__('FuncCallStmt')
-        self.append(_id)
-        if param is None:
-            param = VoidParamNode()
-        self.append(param)
+        assert params is not None
 
-    def gen_stable(self):
-        pass
+        self.append(_id)
+        self.append(params)
+
+        self.name = _id.name
+        self.params = params
+
+    def gen_stable(self, stable):
+        stable.symbol_invoke_func(self.name, self.params.gen_stype())
 
 
 class FuncDefParam(Node):
@@ -305,6 +361,12 @@ class FuncDefParam(Node):
         self.append(data_type)
         self.append(_id)
 
+        self.stype = data_type.gen_stype()
+        self.name = _id.name
+
+    def gen_stype(self):
+        return self.stype
+
 
 class FuncDefParamList(Node):
     """
@@ -312,13 +374,25 @@ class FuncDefParamList(Node):
     """
 
     def __init__(self, params):
+        """
+        if param is void, `params` is None
+        :param params:
+        :return:
+        """
         super(FuncDefParamList, self).__init__('FuncDefParams')
-        if not params:
-            self.append(VoidParamNode())
-        else:
+        if params:
             for param in params:
                 assert isinstance(param, FuncDefParam)
                 self.append(param)
+
+    def gen_stype(self):
+        """
+        Gen param stype list
+        """
+        if self.childCount() == 0:
+            return [SType(tokens.Token_VOID)]
+        else:
+            return [param.gen_stype() for param in self.childItems]
 
 
 class FuncCallParamList(Node):
@@ -328,29 +402,31 @@ class FuncCallParamList(Node):
 
     def __init__(self, params):
         super(FuncCallParamList, self).__init__('FuncCallParamList')
-        if not params:
-            self.append(VoidParamNode())
-        else:
+        if params:
             for param in params:
                 assert isinstance(param, ExprNode)
                 self.append(param)
 
+    def gen_stype(self):
+        return [expr.gen_stype() for expr in self.childItems]
 
-class FuncTypeNode(Node):
+
+class ReturnTypeNode(Node):
     """
     returnType ::= <VOID>  | dataType
     """
 
-    def __init__(self, _type):
-        super(FuncTypeNode, self).__init__('ReturnType')
-        assert isinstance(_type, DataTypeNode)
+    def __init__(self, data_type=None):
+        super(ReturnTypeNode, self).__init__('ReturnType')
+        if data_type:
+            assert isinstance(data_type, DataTypeNode)
 
-        self.type = _type.type
-        self.token = _type.token
+            self.stype = data_type.gen_stype()
+        else:
+            self.stype = SType(tokens.Token_VOID)
 
     def gen_stype(self):
-        # TODO
-        pass
+        return self.stype
 
 
 class ReturnStmtNode(Node):
@@ -361,6 +437,9 @@ class ReturnStmtNode(Node):
     def __init__(self, expr):
         super(ReturnStmtNode, self).__init__('ReturnStmt')
         self.append(expr)
+
+    def gen_stype(self):
+        return self.childAt(0).gen_stype()  # TODO
 
 
 class InnerStmtsNode(Node):
@@ -373,11 +452,11 @@ class InnerStmtsNode(Node):
         if len(stmt_list) > 0:
             for stmt in stmt_list:
                 self.append(stmt)
-        else:
-            self.append(EmptyBodyNode())
 
-    def new_stable(self):
-        return True
+    def gen_stable(self, stable):
+        table = STable()
+        stable.table_append(table)
+        return table
 
 
 class IfStmtNode(Node):
@@ -419,6 +498,12 @@ class AssignStmtNode(Node):
             self.append(arr)
         self.append(expr)
 
+        self.token = _id.token
+        self.arr = arr
+
+    def gen_stable(self, stable):
+        stable.symbol_invoke()  # TODO
+
 
 class ConditionNode(Node):
     """
@@ -445,6 +530,9 @@ class ExprNode(Node):
                 self.append(pair[0])
                 self.append(pair[1])
 
+    def gen_stype(self):
+        return [term.gen_stype() for term in self.childItems]
+
 
 class TermNode(Node):
     """
@@ -458,6 +546,9 @@ class TermNode(Node):
             for pair in mulOp_factor_list:
                 self.append(pair[0])
                 self.append(pair[1])
+
+    def gen_stype(self):
+        return [factor.gen_stype() for factor in self.childItems]
 
 
 class FactorNode(Node):
@@ -475,6 +566,21 @@ class FactorNode(Node):
             self.append(_id)
             if arr:
                 self.append(arr)
+
+    def gen_stable(self, stable):
+        _id = self.childAt(0)
+        if isinstance(_id, IdNode):
+            arr = self.childAt(1)
+            if arr:
+                stable.symbol_invoke(Symbol(_id.name, _id.gen_stype()))
+
+    def gen_stype(self):
+        _id = self.childAt(0)
+        arr = self.childAt(1)
+        if arr:
+            return STypeArray(_id.gen_stype(), arr.size)
+        else:
+            return self.childAt(0).gen_stype()
 
 
 class CompNode(Node):

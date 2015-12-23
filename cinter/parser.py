@@ -93,7 +93,7 @@ class Parser(object):
         self.execute_mode = execute_mode
 
         self.tokenTree = TokenTree()
-        self.syntaxTree = None
+        self.rootNode = None
         self.stable = STable()
         self.ahead = None  # The token just read
         self.buff = []  # unget buffer
@@ -121,12 +121,12 @@ class Parser(object):
         :return: syntax_tree_root_node,token_tree_root_node
         """
         try:
-            self.syntaxTree = self._parse_exter_stmts()
+            self.rootNode = self._parse_exter_stmts()
         except InvalidTokenError:
             return None
         else:
-            self.stdout.write('%s\n' % self.syntaxTree.str_tree())
-            return self.syntaxTree, self.tokenTree.rootNode
+            self.stdout.write('%s\n' % self.rootNode.str_tree())
+            return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
 
@@ -251,9 +251,9 @@ class Parser(object):
         funcDefStmt ::= returnType  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
         """
         if _type and _id:
-            rtype = FuncTypeNode(_type)
+            rtype = ReturnTypeNode(_type)
         else:
-            rtype = self._parse_func_type()
+            rtype = self._parse_return_type()
             _id = IdNode(self._expect(Token_Identifier))
         self._expect(Token_LPAREN)
 
@@ -355,17 +355,17 @@ class Parser(object):
                 break
         return FuncCallParamList(params)
 
-    def _parse_func_type(self):
+    def _parse_return_type(self):
         """
-        funcType ::= <VOID>  | dataType
+        returnType ::= <VOID>  | dataType
         """
         _type = self._expect([Token_INT, Token_REAL, Token_VOID])
         if _type == Token_VOID:
-            return FuncTypeNode(DataTypeNode(_type, None))
+            return ReturnTypeNode()
         else:
             self._unget()
             data_type = self._parse_data_type()
-            return FuncTypeNode(data_type)
+            return ReturnTypeNode(data_type)
 
     def _parse_inner_stmts(self):
         """
@@ -566,13 +566,18 @@ class Parser(object):
         """
         Semantic analysing using DFS.
         """
-        stack = [self.syntaxTree]
+
+        # the node and the direct symbol table which it is in
+        stack = [(self.rootNode, self.stable)]
         while len(stack) > 0:
-            n = stack.pop()
-            n.gen_stable()
-            l = list(n.childItems)
-            l.reverse()
-            stack += l
+            node, stable = stack.pop()
+            table = node.gen_stable(stable)
+            if table:
+                stable = table
+            children = list(node.childItems)
+            children.reverse()
+            children = [(child, stable) for child in children]
+            stack += children
 
 
 if __name__ == '__main__':
