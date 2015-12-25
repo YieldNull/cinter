@@ -125,7 +125,8 @@ class Parser(object):
         except InvalidTokenError:
             return None
         else:
-            self.stdout.write('%s\n' % self.rootNode.str_tree())
+            self.stdout.write('%s\n' % self.rootNode.gen_tree())
+            self._check_semantics()
             return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
@@ -257,7 +258,7 @@ class Parser(object):
             _id = IdNode(self._expect(Token_Identifier))
         self._expect(Token_LPAREN)
 
-        params = None
+        params = FuncDefParamList(None)
         if not self._match(Token_RPAREN):
             self._unget()
             params = self._parse_func_def_param_list()
@@ -361,7 +362,7 @@ class Parser(object):
         """
         _type = self._expect([Token_INT, Token_REAL, Token_VOID])
         if _type == Token_VOID:
-            return ReturnTypeNode()
+            return ReturnTypeNode(None)
         else:
             self._unget()
             data_type = self._parse_data_type()
@@ -572,12 +573,11 @@ class Parser(object):
         while len(stack) > 0:
             node, stable = stack.pop()
             table = node.gen_stable(stable)
-            if table:
-                stable = table
             children = list(node.childItems)
             children.reverse()
-            children = [(child, stable) for child in children]
+            children = [(child, table or stable) for child in children]
             stack += children
+        self.stdout.write(self.stable.gen_tree())
 
 
 if __name__ == '__main__':
