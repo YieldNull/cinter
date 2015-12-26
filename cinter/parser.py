@@ -127,6 +127,7 @@ class Parser(object):
         else:
             self.stdout.write('%s\n' % self.rootNode.gen_tree())
             self._check_semantics()
+            # self._gen_code()
             return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
@@ -446,15 +447,24 @@ class Parser(object):
 
     def _parse_stmt_assign(self):
         """
-        assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
+        assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON>) | (funcCallStmt)
         """
         self._expect(Token_Identifier)
         t = self.ahead
         arr = self._match_arr()
         self._expect(Token_ASSIGN)
-        expr = self._parse_expr()
-        self._expect(Token_SEMICOLON)
-        return AssignStmtNode(IdNode(t), expr, arr)
+
+        temp1 = self._get()
+        temp2 = self._get()
+        self._unget(temp2)
+        self._unget(temp1)
+        if temp1 == Token_LPAREN or temp2 in \
+                [Token_PLUS, Token_MINUS, Token_TIMES, Token_DIVIDE, Token_SEMICOLON]:
+            func_or_expr = self._parse_expr()
+            self._expect(Token_SEMICOLON)
+        else:
+            func_or_expr = self._parse_stmt_func_call()
+        return AssignStmtNode(IdNode(t), func_or_expr, arr)
 
     def _parse_cond(self):
         """
@@ -578,6 +588,10 @@ class Parser(object):
             children = [(child, table or stable) for child in children]
             stack += children
         self.stdout.write(self.stable.gen_tree())
+
+    def _gen_code(self):
+        for code in self.rootNode.gen_code():
+            self.stdout.write('%s\n' % code)
 
 
 if __name__ == '__main__':

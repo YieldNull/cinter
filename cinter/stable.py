@@ -202,9 +202,6 @@ class STable(object):
         :param stype_or_list: single SType instance or its list
         :return: the data type or raise an error
         """
-
-        # TODO enable real int cast?
-
         if isinstance(stype_or_list, SType):
             stype_or_list = [stype_or_list]
 
@@ -240,18 +237,28 @@ class STable(object):
 
         return symbol
 
-    def invoke_assign(self, name, stype_list, is_arr=False):
+    def invoke_assign(self, name, is_arr=False, stype_list=None, funcname=None):
         """
-        check the validity of the `AssignStmt`
+        check the validity of the `AssignStmt`.
+        right value can be an expression or a function call
         :param name: the name of the left-value
-        :param stype_list: a list of the stype of each right value in the expression
         :param is_arr: left-value is_array or not
+        :param stype_list: a list of the stype of each right value in the expression
+        :param funcname: function name
         :return:
         """
-
         # calc left type
         left_type = self.invoke(name, is_arr).stype.type
-        right_type = self.calc_data_type(stype_list)
+        if stype_list:
+            right_type = self.calc_data_type(stype_list)
+        else:
+            symbol = self.symbol_find(funcname)
+            if symbol:
+                right_type = symbol.stype.type
+                if isinstance(symbol.stype.stype, STypeArray) ^ is_arr:
+                    raise TypeMismatchError()
+            else:
+                raise UndefinedError()
         if left_type != right_type:
             raise TypeMismatchError()
 
@@ -293,7 +300,6 @@ class STable(object):
             stype2 = param_stype_lists[i]  # a list of stype because each param can be a expression
 
             # TODO stype2 is a list
-            continue
 
             # calc stype
             if isinstance(stype2, SUnknown):

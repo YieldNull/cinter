@@ -196,6 +196,7 @@ class Lexer(object):
         get char from buffer or input
         :return:
         """
+        # TODO add a function to Token which records the location of the token
         if len(self.buf) == 0:
             c = self.stdin.read(1)
             if len(c) == 0:
