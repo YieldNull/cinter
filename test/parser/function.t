@@ -3,37 +3,32 @@
 
 // function define test
 void void_test(void){
-
+	return;
 }
 
 int void_test2(){
-
+	return 1;
 }
 
 int normal_test(int a){
 	return b+a;
 }
 
-void multi_args_test(int a,real b,int[] c){
+void multi_args_test(int a,real b){
 
-	return 0;
+	return;
 }
 
-real[] array_test(int[] a){
-	return a;
-}
-
-int main(int[] args){
+int main(){
 	int a;
 	a=0;
 	int[3] arr;
 
 	void_test();			// call param `Empty` test
-	void_test2(void);	// call param `void` test
+	a=void_test2(void);	// call param `void` test
 
 	normal_test(a+3/9-4*arr[1]);	//call param `expression`test
-	multi_args_test(1,2.0,arr);
-	array_test(arr);
+	multi_args_test(1,2.0);
 
 	return a+3/9-4*arr[1]; //return `expression` test
 }

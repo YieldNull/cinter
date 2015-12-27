@@ -3,9 +3,11 @@ int a,b,c,f;
 real[3] a,b,c,d,e,f,g;
 int[10] a,b;
 
-void foo(){}
+void foo(){
+	return ;
+}
 
-int main(){
+void main(){
 	foo();
-	return 0;
+	return ;
 }

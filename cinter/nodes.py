@@ -5,9 +5,8 @@ Nodes of abstract grammar tree.
 create on '11/9/15 12:54 PM'
 """
 import StringIO
-
 import tokens
-from stable import Symbol, STypeFunc, STable, SType, STypeArray, SUnknown
+from stable import Symbol, STypeFunc, STable, SType, STypeArray, SUnknown, IndexMissingError
 from inter import Code
 
 __author__ = 'hejunjie'
@@ -66,6 +65,10 @@ class Node(object):
         return 0
 
     def brother(self):
+        """
+        The node after itself in parent children nodes
+        :return:
+        """
         index = self.indexInParent()
         return self.childAt(index + 1)
 
@@ -94,14 +97,37 @@ class Node(object):
             stack += chilrenl
         return stdout.getvalue()
 
+    def gen_location(self):
+        """
+        For error promoting
+        :return:
+        """
+        # TODO print the whole line instead of one token
+        return 'near row:%d column:%d   "%s"'
+
     def gen_stable(self, stable):
+        """
+        Append a new variable to symbol table or add a new table
+        For generator symbol table and semantics analysing
+        :param stable:
+        :return:
+        """
         assert isinstance(stable, STable)
         return None
 
     def gen_stype(self):
+        """
+        Generate the symbol type in symbol table.
+        For semantics analysing
+        :return:
+        """
         return None
 
     def gen_code(self):
+        """
+        Generate  Intermediate Language
+        :return:
+        """
         return []
 
 
@@ -159,6 +185,9 @@ class LeafNode(Node):
     def gen_code(self):
         return self.token.lexeme
 
+    def gen_location(self):
+        return self.token.get_location()
+
 
 class LiteralNode(LeafNode):
     """
@@ -178,20 +207,15 @@ class LiteralNode(LeafNode):
 
 class DataTypeNode(LeafNode):
     """
-    dataType    ::=( <INT> | <REAL> ) (array)?
+    dataType    ::=( <INT> | <REAL> )
     """
 
-    def __init__(self, token, arr=None):
+    def __init__(self, token):
         super(DataTypeNode, self).__init__(token)
         assert token in [tokens.Token_INT, tokens.Token_REAL]
-        assert arr is None or isinstance(arr, ArrayNode)
-        self.arr = arr
 
     def gen_stype(self):
-        if self.arr:
-            return STypeArray(self.token, self.arr.size)
-        else:
-            return SType(self.token)
+        return self.token
 
 
 class ArrayNode(Node):
@@ -280,18 +304,21 @@ class FuncDefStmtNode(Node):
     funcDefStmt ::= returnType  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
     """
 
-    # TODO disable returning a array
     def __init__(self, rtype, _id, params, innerStmts):
         super(FuncDefStmtNode, self).__init__('FuncDefStmt')
         assert params is not None
 
         # set func_id type
+        self.id = _id
         self.funcId = FuncId(rtype, _id, params)
-
         self.append(rtype)
         self.append(self.funcId)
         self.append(params)
         self.append(innerStmts)
+
+    def gen_location(self):
+        row, column = self.id.gen_location()
+        return super(FuncDefStmtNode, self).gen_location() % (row, column, self.id.name)
 
     def gen_stable(self, stable):
         stable.symbol_append(self.funcId.gen_symbol())
@@ -314,7 +341,8 @@ class ReturnTypeNode(Node):
         if data_type:
             assert isinstance(data_type, DataTypeNode)
 
-            self.stype = data_type.gen_stype()
+            self.stype = SType(data_type.gen_stype())
+            self.append(data_type)
         else:
             self.stype = SType(tokens.Token_VOID)
 
@@ -377,12 +405,17 @@ class FuncCallStmtNode(Node):
         super(FuncCallStmtNode, self).__init__('FuncCallStmt')
 
         self.append(_id)
+        self.id = _id
         self.name = _id.name
         if params:
             self.append(params)
             self.params = params
         else:
             self.params = None
+
+    def gen_location(self):
+        row, column = self.id.gen_location()
+        return super(FuncCallStmtNode, self).gen_location() % (row, column, self.id.name)
 
     def gen_stable(self, stable):
         stable.invoke_func(self.name, self.params.gen_stype() if self.params else [])
@@ -421,42 +454,61 @@ class FuncCallParamList(Node):
 
 class ReturnStmtNode(Node):
     """
-    returnStmt      ::= <RETURN> expression <SEMICOLON>
+    returnStmt      ::= <RETURN> (expression)? <SEMICOLON>
     """
 
-    def __init__(self, expr):
+    def __init__(self, returnNode, expr=None):
         super(ReturnStmtNode, self).__init__('ReturnStmt')
-        self.append(expr)
+        self.returnNode = returnNode  # in order to gen location
+        if expr:
+            self.append(expr)
+
+    def gen_location(self):
+        row, column = self.returnNode.get_location()
+        return super(ReturnStmtNode, self).gen_location() % (row, column, 'return')
 
     def gen_stable(self, stable):
-        stable.invoke_return(self.childAt(0).gen_stype())
+        stable.invoke_return(self.childAt(0).gen_stype() if self.childCount() > 0 else None)
 
     def gen_code(self):
-        codes = self.childAt(0).gen_code()
-        codes.append(Code('=', arg1=codes[len(codes) - 1].tar, tar='_rv'))
-        codes.append(Code('j', tar='_ra'))
+        if self.childCount() > 0:
+            codes = self.childAt(0).gen_code()
+            codes.append(Code(op='=', arg1=codes[len(codes) - 1].tar, tar='_rv'))
+        else:
+            codes = [Code(op='=', tar='_rv'), Code('j', tar='_ra')]
+        return codes
 
 
 class DeclareStmtNode(Node):
     """
-    declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+    declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
     """
 
-    def __init__(self, data_type, id_list):
+    def __init__(self, data_type, id_list, arr=None):
         super(DeclareStmtNode, self).__init__('DeclareStmt')
         assert isinstance(data_type, DataTypeNode)
 
-        self.stype = data_type.gen_stype()
-        if isinstance(self.stype, STypeArray) and (not self.stype.size):
-            raise IndexError()
+        stype = data_type.gen_stype()
+        if arr:
+            if not arr.size:
+                raise IndexMissingError()
+            self.stype = STypeArray(stype, arr.size)
+        else:
+            self.stype = SType(stype)
 
         self.append(data_type)
+        if arr:
+            self.append(arr)
         for _id in id_list:
             assert isinstance(_id, IdNode)
             self.append(_id)
             _id.set_stype(self.stype)  # set id type
 
         self.id_list = id_list
+
+    def gen_location(self):
+        row, column = self.id_list[0].gen_location()
+        return super(DeclareStmtNode, self).gen_location() % (row, column, self.id_list[0].name)
 
     def gen_stable(self, stable):
         for _id in self.id_list:
@@ -546,6 +598,7 @@ class AssignStmtNode(Node):
     def __init__(self, _id, expr_or_func_call, arr=None):
         super(AssignStmtNode, self).__init__('AssignStmt')
         self.name = _id.name
+        self.id = _id
         self.arr = arr
         if isinstance(expr_or_func_call, ExprNode):
             self.expr = expr_or_func_call
@@ -560,9 +613,13 @@ class AssignStmtNode(Node):
             self.append(arr)
         self.append(expr_or_func_call)
 
+    def gen_location(self):
+        row, column = self.id.gen_location()
+        return super(AssignStmtNode, self).gen_location() % (row, column, self.id.name)
+
     def gen_stable(self, stable):
         if self.arr and (not self.arr.size):
-            raise IndexError()
+            raise IndexMissingError()
 
         if self.expr:
             stable.invoke_assign(self.name, is_arr=True if self.arr else False,
@@ -590,6 +647,10 @@ class ConditionNode(Node):
         self.append(expr1)
         self.append(compOp)
         self.append(expr2)
+
+    def gen_location(self):
+        row, column = self.childAt(1).gen_location()
+        return super(ConditionNode, self).gen_location() % (row, column, self.childAt(1).name)
 
     def gen_stable(self, stable):
         stable.invoke_compare(self.childAt(0).gen_stype(), self.childAt(2).gen_stype())
@@ -708,7 +769,7 @@ class FactorNode(Node):
             arr = self.childAt(1)
             if arr:
                 if not arr.size:  # if arr, its size must exists
-                    raise IndexError()
+                    raise IndexMissingError()
                 return [SUnknown(child.name, True)]
             else:
                 return [SUnknown(child.name, False)]
@@ -739,9 +800,13 @@ class CompNode(Node):
     def __init__(self, op):
         super(CompNode, self).__init__('Compare')
         self.append(op)
+        self.name = op.token.lexeme
 
     def gen_code(self):
         return 'j' + self.childAt(0).gen_code()
+
+    def gen_location(self):
+        return self.childAt(0).token.get_location()
 
 
 class AddNode(Node):

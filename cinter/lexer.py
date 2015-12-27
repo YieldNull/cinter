@@ -169,6 +169,9 @@ class Lexer(object):
         self._ungetc(c)
         self._print_error()
 
+    def get_location(self):
+        return self.line, len(self.read) + 1
+
     def _consume_int(self, c, tail=False):
         """
         consume a integer and return the str format
@@ -196,7 +199,6 @@ class Lexer(object):
         get char from buffer or input
         :return:
         """
-        # TODO add a function to Token which records the location of the token
         if len(self.buf) == 0:
             c = self.stdin.read(1)
             if len(c) == 0:

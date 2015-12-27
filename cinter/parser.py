@@ -30,11 +30,12 @@ To connect with GUI, we need to redirect std streams.
 
 create on '10/5/15 10:36 PM'
 """
+import copy
 import sys
 
 from tokens import *
 from nodes import *
-from stable import STable
+from stable import STable, SemanticsError
 from lexer import Lexer, InvalidTokenError
 
 __author__ = 'hejunjie'
@@ -126,8 +127,16 @@ class Parser(object):
             return None
         else:
             self.stdout.write('%s\n' % self.rootNode.gen_tree())
-            self._check_semantics()
-            # self._gen_code()
+            stable = self._check_semantics()
+            if stable:
+                main = self.stable.symbol_find('main')
+                if not main or not isinstance(main.stype, STypeFunc):
+                    self.stderr.write("No main function found")
+                elif main.stype.type != Token_VOID:
+                    self.stderr.write("Main function must returns VOID")
+                else:
+                    self.stdout.write(stable)
+                    self._gen_code()
             return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
@@ -145,6 +154,9 @@ class Parser(object):
         """
         if len(self.buff) == 0:
             self.ahead = self.lexer.next_token()
+            if self.ahead:  # set token location
+                self.ahead = copy.copy(self.ahead)  # copy the token to make difference
+                self.ahead.set_location(self.lexer.get_location())
             self._build_token_tree()
         else:
             self.ahead = self.buff.pop()
@@ -206,9 +218,9 @@ class Parser(object):
         :param expect:
         :return:
         """
-        offset = len(self.lexer.read) + 1
+        line, offset = self.lexer.get_location()
         offset -= len(self.ahead.lexeme) if self.ahead else 0
-        msg = '\nInvalid token near row %d, column %d:' % (self.lexer.line, offset)
+        msg = '\nInvalid token near row %d, column %d:' % (line, offset)
         self.lexer.read_line_rest()
 
         self.stderr.write('%s\n' % msg)
@@ -228,7 +240,7 @@ class Parser(object):
         The beginning of parsing.
 
         Judge which stmt to parse in the loop.
-            declare ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+            declare ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
             VS
             funcDef  ::= (<VOID>  | dataType)  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> ...
         """
@@ -239,24 +251,29 @@ class Parser(object):
                 stmts.append(self._parse_stmt_func_def())
             else:
                 _type = self._parse_data_type()
-                _id = IdNode(self._expect(Token_Identifier))
-                m = self._match(Token_LPAREN)
+                m = self._match(Token_LBRACKET)
                 self._unget()
                 if m:
-                    stmts.append(self._parse_stmt_func_def(_type=_type, _id=_id))
+                    self._unget(_type.token)
+                    stmts.append(self._parse_stmt_declare())
                 else:
-                    stmts.append(self._parse_stmt_declare(_type=_type, _id=_id))
+                    _id = IdNode(self._expect(Token_Identifier))
+                    m = self._match(Token_LPAREN)
+                    self._unget()
+                    self._unget(_id.token)
+                    self._unget(_type.token)
+                    if m:
+                        stmts.append(self._parse_stmt_func_def())
+                    else:
+                        stmts.append(self._parse_stmt_declare())
         return ExterStmtsNode(stmts)
 
-    def _parse_stmt_func_def(self, _type=None, _id=None):
+    def _parse_stmt_func_def(self):
         """
         funcDefStmt ::= returnType  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
         """
-        if _type and _id:
-            rtype = ReturnTypeNode(_type)
-        else:
-            rtype = self._parse_return_type()
-            _id = IdNode(self._expect(Token_Identifier))
+        rtype = self._parse_return_type()
+        _id = IdNode(self._expect(Token_Identifier))
         self._expect(Token_LPAREN)
 
         params = FuncDefParamList(None)
@@ -266,21 +283,24 @@ class Parser(object):
             self._expect(Token_RPAREN)
         self._expect(Token_LBRACE)
         stmts = self._parse_inner_stmts()
+
+        # function must return
+        if stmts.childCount() == 0 or \
+                (True not in [isinstance(stmt, ReturnStmtNode) for stmt in stmts.childItems]):
+            self._parse_stmt_return()
+
         self._expect(Token_RBRACE)
         return FuncDefStmtNode(rtype, _id, params, stmts)
 
-    def _parse_stmt_declare(self, _type=None, _id=None):
+    def _parse_stmt_declare(self):
         """
-        declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+        declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
         """
         id_list = []
-        if _type and _id:
-            data_type = _type
-            id_list.append(_id)
-        else:
-            data_type = self._parse_data_type()
-            _id = self._expect(Token_Identifier)
-            id_list.append(IdNode(_id))
+        data_type = self._parse_data_type()
+        arr = self._match_arr()
+        _id = self._expect(Token_Identifier)
+        id_list.append(IdNode(_id))
         while True:
             if self._match(Token_COMMA):
                 _id = self._expect(Token_Identifier)
@@ -289,7 +309,7 @@ class Parser(object):
                 self._unget()
                 break
         self._expect(Token_SEMICOLON)
-        return DeclareStmtNode(data_type, id_list)
+        return DeclareStmtNode(data_type, id_list, arr=arr)
 
     def _parse_stmt_func_call(self):
         """
@@ -308,12 +328,16 @@ class Parser(object):
 
     def _parse_stmt_return(self):
         """
-        returnStmt      ::= <RETURN> expression <SEMICOLON>
+        returnStmt      ::= <RETURN> (expression)? <SEMICOLON>
         """
-        self._expect(Token_RETURN)
-        expr = self._parse_expr()
+        returnNode = self._expect(Token_RETURN)
+        if self._match(Token_SEMICOLON):
+            return ReturnStmtNode(returnNode)
+        else:
+            self._unget()
+            expr = self._parse_expr()
         self._expect(Token_SEMICOLON)
-        return ReturnStmtNode(expr)
+        return ReturnStmtNode(returnNode, expr)
 
     def _parse_func_def_param(self):
         """
@@ -403,11 +427,10 @@ class Parser(object):
 
     def _parse_data_type(self):
         """
-        dataType    ::= ( <INT> | <REAL> ) (array)?
+        dataType    ::= ( <INT> | <REAL> )
         """
         _type = self._expect([Token_INT, Token_REAL])
-        arr = self._match_arr()
-        return DataTypeNode(_type, arr)
+        return DataTypeNode(_type)
 
     def _parse_stmt_if(self):
         """
@@ -458,8 +481,8 @@ class Parser(object):
         temp2 = self._get()
         self._unget(temp2)
         self._unget(temp1)
-        if temp1 == Token_LPAREN or temp2 in \
-                [Token_PLUS, Token_MINUS, Token_TIMES, Token_DIVIDE, Token_SEMICOLON]:
+        if (temp1 == Token_LPAREN) or (temp2 in [Token_PLUS, Token_MINUS, Token_TIMES,
+                                                 Token_DIVIDE, Token_SEMICOLON, Token_LBRACKET]):
             func_or_expr = self._parse_expr()
             self._expect(Token_SEMICOLON)
         else:
@@ -516,11 +539,11 @@ class Parser(object):
         """
         self._expect((Token_RealLiteral, Token_IntLiteral, Token_Identifier, Token_LPAREN))
         t = self.ahead
-        if self.ahead.type == Token_LPAREN.type:
+        if self.ahead == Token_LPAREN:
             expr = self._parse_expr()
             self._expect(Token_RPAREN)
             return FactorNode(expr=expr)
-        elif self.ahead.type == Token_Identifier.type:
+        elif self.ahead == Token_Identifier:
             arr = self._match_arr()
             return FactorNode(_id=IdNode(t), arr=arr)
         else:
@@ -582,12 +605,17 @@ class Parser(object):
         stack = [(self.rootNode, self.stable)]
         while len(stack) > 0:
             node, stable = stack.pop()
-            table = node.gen_stable(stable)
-            children = list(node.childItems)
-            children.reverse()
-            children = [(child, table or stable) for child in children]
-            stack += children
-        self.stdout.write(self.stable.gen_tree())
+            try:
+                table = node.gen_stable(stable)
+            except SemanticsError, e:
+                self.stderr.write('%s %s\n' % (str(e), node.gen_location()))
+                return None
+            else:
+                children = list(node.childItems)
+                children.reverse()
+                children = [(child, table or stable) for child in children]
+                stack += children
+        return self.stable.gen_tree()
 
     def _gen_code(self):
         for code in self.rootNode.gen_code():

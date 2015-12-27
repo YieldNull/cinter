@@ -4,24 +4,40 @@
 Symbol table.
 """
 import StringIO
-
 import tokens
 
 
-class RedefinedError(Exception):
-    pass
+class SemanticsError(Exception):
+    def __init__(self, error):
+        self.error = error
+
+    def __str__(self):
+        return '%s' % self.error
 
 
-class UndefinedError(Exception):
-    pass
+class RedefinedError(SemanticsError):
+    def __init__(self):
+        super(RedefinedError, self).__init__('RedefinedError')
 
 
-class TypeMismatchError(Exception):
-    pass
+class UndefinedError(SemanticsError):
+    def __init__(self):
+        super(UndefinedError, self).__init__('UndefinedError')
 
 
-class ParamMismatchError(Exception):
-    pass
+class TypeMismatchError(SemanticsError):
+    def __init__(self):
+        super(TypeMismatchError, self).__init__('TypeMismatchError')
+
+
+class ParamMismatchError(SemanticsError):
+    def __init__(self):
+        super(ParamMismatchError, self).__init__('ParamMismatchError')
+
+
+class IndexMissingError(SemanticsError):
+    def __init__(self):
+        super(IndexMissingError, self).__init__('IndexMissingError')
 
 
 class SType(object):
@@ -182,6 +198,25 @@ class STable(object):
             else:  # recursion ends at root table whose parent is None
                 return None
 
+    def symbol_find_func(self, ends=None):
+        """
+        find nearest pre defined function.
+        :param ends:
+        :return:
+        """
+        if not ends:
+            ends = len(self.symbols) - 1
+
+        for i in range(ends + 1):  # check self
+            smb = self.symbol_at(i)
+            if isinstance(smb.stype, STypeFunc):
+                return smb
+        else:  # check parent tables
+            if self.parent:
+                return self.parent.symbol_find_func(self.tsindex)
+            else:  # recursion ends at root table whose parent is None
+                return None
+
     def symbol_has_defined(self, symbol):
         """
         Check if the symbol has been defined before when appending it to table.
@@ -290,32 +325,38 @@ class STable(object):
         if not isinstance(symbol.stype, STypeFunc):
             raise TypeMismatchError()
 
-        # matching
+        # matching param count
         defined_types = symbol.stype.param_stypes
         if len(defined_types) != len(param_stype_lists):
             raise ParamMismatchError()
 
         for i in range(len(defined_types)):
             stype1 = defined_types[i]
-            stype2 = param_stype_lists[i]  # a list of stype because each param can be a expression
-
-            # TODO stype2 is a list
-
-            # calc stype
-            if isinstance(stype2, SUnknown):
-                stype2 = self.invoke(stype2.name).stype
-
-            # STypeArray
-            if isinstance(stype1, STypeArray) and not isinstance(stype2, STypeArray):
-                raise TypeMismatchError()
+            stype2_list = param_stype_lists[i]  # a list of stype because each param can be a expression
+            stype2 = self.calc_data_type(stype2_list)
 
             # normal SType
             if stype1.type != stype2.type:
                 raise TypeMismatchError()
 
-    def invoke_return(self, stype_list):
-        # TODO find the nearest func def and match return type with stype_list
-        pass
+    def invoke_return(self, stype_list=None):
+        """
+        invoke return stmt
+
+        find the nearest func def and match return type with stype_list
+        :param stype_list: expression stype.None if return void
+        :return:
+        """
+        func = self.symbol_find_func()
+        if not func:
+            raise TypeMismatchError()
+        if stype_list is None:
+            if (func.stype.type == tokens.Token_VOID) ^ (stype_list is None):
+                raise TypeMismatchError()
+        else:
+            data_type = self.calc_data_type(stype_list)
+            if func.stype.type != data_type:
+                raise TypeMismatchError()
 
     def gen_tree(self, level=1):
         """

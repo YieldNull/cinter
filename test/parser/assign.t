@@ -3,7 +3,7 @@
 int a;
 real[3] b,d;
 
-int main(){
+void main(){
 	a=10;
 
 	b[0]=1.5;
@@ -11,4 +11,5 @@ int main(){
 	b[2]=4.0;
 
 	d=(b[0])+(b[3]*a)/5;
+	return;
 }

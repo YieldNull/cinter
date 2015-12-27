@@ -35,9 +35,29 @@ class Token(object):
         self.lexeme = lexeme
         self.type = TYPE[cate]
         self.cate = cate  # the category of the token.like 'COMMA' corresponds to ','
+        self.row = None
+        self.column = None
 
     def __str__(self):
         return "<%s: '%s'>" % (self.cate, self.lexeme)
+
+    def __eq__(self, other):  # to enable token matching
+        if self.type == other.type:
+            return True
+        else:
+            return False
+
+    def __ne__(self, other):  # to enable token matching
+        if self.type != other.type:
+            return True
+        else:
+            return False
+
+    def set_location(self, location):
+        self.row, self.column = location
+
+    def get_location(self):
+        return self.row, self.column
 
 
 class IntLiteral(Token):

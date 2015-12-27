@@ -2,24 +2,27 @@
 
 real b;
 
-void func(int[] a){
-	return a[0]+b;
+int func(int a){
+	return a*a;
 }
 
 int a;
 int[3] arr;
 
-int main(){
+void main(){
 	read(a);
 
 	while(1==(a+9*8-arr[0])){	// `while` test
     	write(9);
     	if (a>9){ // `if-else` test
-        	write(a);
+			int temp;
+			temp=func(a);
+        	write(temp);
     	}else{
         	if(a<15){ // `if` test
             	write(a+9/arr[1]);
         	}
     	}
 	}
+	return;
 }
