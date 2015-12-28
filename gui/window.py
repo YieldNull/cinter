@@ -7,7 +7,7 @@ from cinter.parser import Parser
 from gui.editor import CodeEditor
 from ui_window import Ui_MainWindow
 from PyQt5 import QtWidgets
-from PyQt5.QtGui import QTextCursor, QColor
+from PyQt5.QtGui import QTextCursor, QColor, QFont
 from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
                           Qt, QFile, QModelIndex, QVariant, QAbstractItemModel)
 from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
@@ -161,6 +161,14 @@ class MainWindow(QMainWindow):
         self.ui.tabWidgetEditor.tabBarClicked.connect(self.switchEditorTab)
         self.ui.tabWidgetEditor.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetEditor))
 
+        # Bottom textBrowser font
+        font = QFont()
+        font.setFamily("Courier")
+        font.setStyleHint(QFont.Monospace)
+        font.setFixedPitch(True)
+        font.setPointSize(10)
+        self.ui.textBrowser.setFont(font)
+
         # Bottom output tabs
         self.TextConsole = None
         self.TextOutput = None
@@ -296,9 +304,9 @@ class MainWindow(QMainWindow):
             if editor.document().isModified():
                 name = ntpath.basename(editor.file) if editor.file else 'New File'
                 ret = QMessageBox.warning(
-                    self, name,
-                    'The document has been modified.\nDo you want to save your changes?',
-                    QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+                        self, name,
+                        'The document has been modified.\nDo you want to save your changes?',
+                        QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
                 if ret == QMessageBox.Save:
                     event.accept() if self.saveFile() else event.ignore()
                 elif ret == QMessageBox.Discard:
@@ -514,7 +522,7 @@ class MainWindow(QMainWindow):
                 widget.show()
         else:
             widget.removeTab(
-                widget.indexOf(tab))
+                    widget.indexOf(tab))
             if widget.count() == 0:
                 widget.hide()
 
@@ -550,7 +558,7 @@ class MainWindow(QMainWindow):
             index = self.ui.tabWidgetEditor.indexOf(self.currentEditorTab)
             _translate = QCoreApplication.translate
             self.ui.tabWidgetEditor.setTabText(
-                index, _translate("MainWindow", ntpath.basename(path)))
+                    index, _translate("MainWindow", ntpath.basename(path)))
             self.ui.tabWidgetEditor.setCurrentIndex(index)
             self.currentEditor.setPlainText(content)
 
@@ -571,7 +579,7 @@ class MainWindow(QMainWindow):
         index = self.ui.tabWidgetEditor.indexOf(self.currentEditorTab)
         _translate = QCoreApplication.translate
         self.ui.tabWidgetEditor.setTabText(
-            index, _translate("MainWindow", 'New File'))
+                index, _translate("MainWindow", 'New File'))
         self.ui.tabWidgetEditor.setCurrentIndex(index)
 
     @pyqtSlot(bool)
