@@ -159,15 +159,15 @@ class STable(object):
         else:
             return c
 
-    def symbol_append(self, symbol):
+    def symbol_append(self, symbol, check=True):
         """
         Append table object
+        :param check: Check repetition or not. function param list do not check
         """
-        if self.symbol_has_defined(symbol):
+        if check and self._symbol_has_defined(symbol):
             raise RedefinedError()
-        else:
-            self.symbols.append(symbol)
-            symbol.table = self
+        self.symbols.append(symbol)
+        symbol.table = self
 
     def symbol_at(self, index):
         try:
@@ -176,101 +176,6 @@ class STable(object):
             return None
         else:
             return symbol
-
-    def symbol_find(self, name, ends=None):
-        """
-        find the symbol defined before with name of `name`
-
-        :param ends: searching in [0,ends] in the symbol list of current table.
-                    Used when searching in parent table whose value is `tsindex`
-        :return: the symbol or None
-        """
-        if not ends:
-            ends = len(self.symbols) - 1
-
-        for i in range(ends + 1):  # check self
-            smb = self.symbol_at(i)
-            if smb.name == name:
-                return smb
-        else:  # check parent tables
-            if self.parent:
-                return self.parent.symbol_find(name, self.tsindex)
-            else:  # recursion ends at root table whose parent is None
-                return None
-
-    def symbol_find_func(self, ends=None):
-        """
-        find nearest pre defined function.
-        :param ends:
-        :return:
-        """
-        if not ends:
-            ends = len(self.symbols) - 1
-
-        for i in range(ends + 1):  # check self
-            smb = self.symbol_at(i)
-            if isinstance(smb.stype, STypeFunc):
-                return smb
-        else:  # check parent tables
-            if self.parent:
-                return self.parent.symbol_find_func(self.tsindex)
-            else:  # recursion ends at root table whose parent is None
-                return None
-
-    def symbol_has_defined(self, symbol):
-        """
-        Check if the symbol has been defined before when appending it to table.
-        :param symbol:
-        :return:
-        """
-        if self.symbol_find(symbol.name):
-            return True
-        else:
-            return False
-
-    def calc_data_type(self, stype_or_list):
-        """
-        calc the data type of the `stype_or_list`
-        ** Type Cast is Not Allowed!!! **
-        ** The data type of each item must be the same **
-
-        :param stype_or_list: single SType instance or its list
-        :return: the data type or raise an error
-        """
-        if isinstance(stype_or_list, SType):
-            stype_or_list = [stype_or_list]
-
-        the_type = None
-        for stype in stype_or_list:
-            if isinstance(stype, SUnknown):  # calc the type of the id
-                stype = self.invoke(stype.name, stype.is_arr).stype
-            if the_type:
-                if stype.type != the_type:
-                    raise TypeMismatchError()
-            else:
-                the_type = stype.type
-        return the_type
-
-    def invoke(self, name, is_arr=False):
-        """
-        When invoking an `id`, check its validity.
-        :param name: the name of `id`
-        :param is_arr: id is an array? default is False
-        :return: the symbol we found with the name or raise an error
-        """
-        symbol = self.symbol_find(name)  # find the symbol with name `name`
-        if not symbol:
-            raise UndefinedError()  # raise error if not found
-
-        # symbol.stype must be corresponding to `is_arr`
-        if isinstance(symbol.stype, STypeArray) ^ is_arr:
-            raise TypeMismatchError()
-
-        # symbol cannot be a function, 'cause function would be handled in `invoke_func`
-        if isinstance(symbol.stype, STypeFunc):
-            raise TypeMismatchError()
-
-        return symbol
 
     def invoke_assign(self, name, is_arr=False, stype_list=None, funcname=None):
         """
@@ -283,17 +188,23 @@ class STable(object):
         :return:
         """
         # calc left type
-        left_type = self.invoke(name, is_arr).stype.type
+        left_type = self._invoke(name, is_arr).stype.type
+        symbol = None
         if stype_list:
-            right_type = self.calc_data_type(stype_list)
+            right_type = self._calc_data_type(stype_list)
         else:
-            symbol = self.symbol_find(funcname)
+            symbol = self._symbol_find(funcname)
             if symbol:
                 right_type = symbol.stype.type
-                if isinstance(symbol.stype.stype, STypeArray) ^ is_arr:
-                    raise TypeMismatchError()
+                # if isinstance(symbol.stype.stype, STypeArray) ^ is_arr:
+                #     raise TypeMismatchError()
             else:
                 raise UndefinedError()
+
+        # ignore `read` function,'cause it returns int or real
+        if symbol and symbol.name == 'read':
+            return
+
         if left_type != right_type:
             raise TypeMismatchError()
 
@@ -305,7 +216,7 @@ class STable(object):
         :param stype_list2:
         :return:
         """
-        if self.calc_data_type(stype_list1) != self.calc_data_type(stype_list2):
+        if self._calc_data_type(stype_list1) != self._calc_data_type(stype_list2):
             raise TypeMismatchError()
 
     def invoke_func(self, name, param_stype_lists):
@@ -315,7 +226,7 @@ class STable(object):
         :param param_stype_lists: list of (expr) stype_list
         :return:
         """
-        symbol = self.symbol_find(name)
+        symbol = self._symbol_find(name)
 
         # check if defined
         if not symbol:
@@ -330,13 +241,17 @@ class STable(object):
         if len(defined_types) != len(param_stype_lists):
             raise ParamMismatchError()
 
+        # do not check write(var) type,'cause the param can be int or real
+        if symbol.name == 'write':
+            return
+
         for i in range(len(defined_types)):
             stype1 = defined_types[i]
             stype2_list = param_stype_lists[i]  # a list of stype because each param can be a expression
-            stype2 = self.calc_data_type(stype2_list)
+            type2 = self._calc_data_type(stype2_list)
 
             # normal SType
-            if stype1.type != stype2.type:
+            if stype1.type != type2:
                 raise TypeMismatchError()
 
     def invoke_return(self, stype_list=None):
@@ -347,14 +262,14 @@ class STable(object):
         :param stype_list: expression stype.None if return void
         :return:
         """
-        func = self.symbol_find_func()
+        func = self._symbol_find_func()
         if not func:
             raise TypeMismatchError()
         if stype_list is None:
             if (func.stype.type == tokens.Token_VOID) ^ (stype_list is None):
                 raise TypeMismatchError()
         else:
-            data_type = self.calc_data_type(stype_list)
+            data_type = self._calc_data_type(stype_list)
             if func.stype.type != data_type:
                 raise TypeMismatchError()
 
@@ -366,8 +281,8 @@ class STable(object):
         """
         stdout = StringIO.StringIO()
         for i in range(len(self.symbols)):
-            symbol = self.symbol_at(i)
-            indent = '|----' + '------' * (level - 1) + '>'
+            symbol = self.symbols[i]
+            indent = '|---' + '----' * (level - 1) + '>'
             stdout.write('%s(%s:%s)\n' % (indent, symbol.name, symbol.stype.type.lexeme))
 
             if i in self.children_tsindex:
@@ -375,3 +290,107 @@ class STable(object):
         value = stdout.getvalue()
         stdout.close()
         return value
+
+    def check_main(self):
+        main = self._symbol_find('main')
+        if not main or not isinstance(main.stype, STypeFunc):
+            return "No main function found"
+        elif main.stype.type != tokens.Token_VOID:
+            return "Main function must returns VOID"
+        else:
+            return None
+
+    def _symbol_find(self, name, ends=None):
+        """
+        find the symbol defined before with name of `name`
+
+        :param ends: searching in [0,ends] in the symbol list of current table.
+                    Used when searching in parent table whose value is `tsindex`
+        :return: the symbol or None
+        """
+        if not ends:
+            ends = len(self.symbols) - 1
+
+        for i in range(ends, -1, -1):  # check self
+            smb = self.symbol_at(i)
+            if smb.name == name:
+                return smb
+        else:  # check parent tables
+            if self.parent:
+                return self.parent._symbol_find(name, self.tsindex)
+            else:  # recursion ends at root table whose parent is None
+                return None
+
+    def _symbol_find_func(self, ends=None):
+        """
+        find nearest pre defined function.
+        :param ends:
+        :return:
+        """
+        if not ends:
+            ends = len(self.symbols) - 1
+
+        for i in range(ends, -1, -1):  # check self from bottom to top
+            smb = self.symbol_at(i)
+            if isinstance(smb.stype, STypeFunc):
+                return smb
+        else:  # check parent tables
+            if self.parent:
+                return self.parent._symbol_find_func(self.tsindex)
+            else:  # recursion ends at root table whose parent is None
+                return None
+
+    def _symbol_has_defined(self, symbol):
+        """
+        Check if the symbol has been defined before when appending it to table.
+        :param symbol:
+        :return:
+        """
+        if self._symbol_find(symbol.name):
+            return True
+        else:
+            return False
+
+    def _calc_data_type(self, stype_or_list):
+        """
+        calc the data type of the `stype_or_list`
+        ** Type Cast is Not Allowed!!! **
+        ** The data type of each item must be the same **
+
+        :param stype_or_list: single SType instance or its list
+        :return: the data type or raise an error
+        """
+        if isinstance(stype_or_list, SType):
+            stype_or_list = [stype_or_list]
+
+        the_type = None
+        for stype in stype_or_list:
+            if isinstance(stype, SUnknown):  # calc the type of the id
+                stype = self._invoke(stype.name, stype.is_arr).stype
+            if the_type:
+                if stype.type != the_type:
+                    raise TypeMismatchError()
+            else:
+                the_type = stype.type
+        return the_type
+
+    def _invoke(self, name, is_arr=False):
+        """
+        When invoking an `id`, check its validity.
+        :param name: the name of `id`
+        :param is_arr: id is an array? default is False
+        :return: the symbol we found with the name or raise an error
+        """
+        symbol = self._symbol_find(name)  # find the symbol with name `name`
+        if not symbol:
+            raise UndefinedError()  # raise error if not found
+
+        # symbol.stype must be corresponding to `is_arr`
+        if isinstance(symbol.stype, STypeArray) ^ is_arr:
+            raise TypeMismatchError()
+
+        # symbol cannot be a function, 'cause function would be handled in `invoke_func`
+        if isinstance(symbol.stype, STypeFunc):
+            raise TypeMismatchError()
+
+        return symbol

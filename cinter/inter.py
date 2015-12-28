@@ -4,20 +4,20 @@ An interpreter base on `Code`
 
 
 class Code(object):
-    tindex = 0  # index of temp variable
-    line = 0  # line number
+    line = -1  # line number
 
-    def __init__(self, op=None, arg1=None, arg2=None, tar=None):
+    def __init__(self, op='', arg1='', arg2='', tar=''):
         self.op = op
         self.arg1 = arg1
         self.arg2 = arg2
         self.tar = tar
         Code.line += 1
+        self.line = Code.line
 
     def __str__(self):
-        return '%d : (%s ,%s ,%s ,%s)' % (Code.line, self.op, str(self.arg1), str(self.arg2), str(self.tar))
+        return '%3d: ( %-3s , %-5s , %-5s , %-8s )' % \
+               (self.line, self.op, str(self.arg1), str(self.arg2), str(self.tar))
 
     @classmethod
     def gen_temp(cls):
-        Code.line += 1
-        return '_t%d' % (Code.line)
+        return '_t%d' % (Code.line + 1)  # use code index as the temp variable index

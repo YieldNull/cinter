@@ -126,20 +126,47 @@ class Parser(object):
         except InvalidTokenError:
             return None
         else:
-            self.stdout.write('%s\n' % self.rootNode.gen_tree())
-            stable = self._check_semantics()
+            # self.stdout.write('%s\n' % self.rootNode.gen_tree())
+            stable = self.semantic()
             if stable:
-                main = self.stable.symbol_find('main')
-                if not main or not isinstance(main.stype, STypeFunc):
-                    self.stderr.write("No main function found")
-                elif main.stype.type != Token_VOID:
-                    self.stderr.write("Main function must returns VOID")
+                error = self.stable.check_main()
+                if error:
+                    self.stderr.write('%s\n' % error)
                 else:
-                    self.stdout.write(stable)
-                    self._gen_code()
+                    # self.stdout.write(stable)
+                    self.compile()
             return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
+
+    def semantic(self):
+        """
+        Semantic analysing using DFS.
+        """
+        # add `read` and `write` function to stable
+        self.stable.symbol_append(Symbol('read', STypeFunc(SType(tokens.Token_INT), [])))
+        self.stable.symbol_append(Symbol('write', STypeFunc(SType(tokens.Token_VOID), [SType(Token_INT)])))
+
+        # the node and the direct symbol table which it is in
+        stack = [(self.rootNode, self.stable)]
+        while len(stack) > 0:
+            node, stable = stack.pop()
+            try:
+                table = node.gen_stable(stable)
+            except SemanticsError, e:
+                self.stderr.write('%s %s\n' % (str(e), node.gen_location()))
+                return None
+            else:
+                children = list(node.childItems)
+                children.reverse()
+                children = [(child, table or stable) for child in children]
+                stack += children
+        return self.stable.gen_tree()
+
+    def compile(self):
+        Code.line = -1  # initialize line before each compiling
+        for code in self.rootNode.gen_code():
+            self.stdout.write('%s\n' % str(code))
 
     def _close_stream(self):
         self.stdin.close()
@@ -244,7 +271,9 @@ class Parser(object):
             VS
             funcDef  ::= (<VOID>  | dataType)  <ID>  <LPAREN> ( funcDefParamList )?  <RPAREN> ...
         """
+
         stmts = []
+
         while self._get():
             self._unget()
             if self.ahead == Token_VOID:
@@ -595,31 +624,6 @@ class Parser(object):
         """
         if self._match((Token_TIMES, Token_DIVIDE)):
             return MulNode(LeafNode(self.ahead))
-
-    def _check_semantics(self):
-        """
-        Semantic analysing using DFS.
-        """
-
-        # the node and the direct symbol table which it is in
-        stack = [(self.rootNode, self.stable)]
-        while len(stack) > 0:
-            node, stable = stack.pop()
-            try:
-                table = node.gen_stable(stable)
-            except SemanticsError, e:
-                self.stderr.write('%s %s\n' % (str(e), node.gen_location()))
-                return None
-            else:
-                children = list(node.childItems)
-                children.reverse()
-                children = [(child, table or stable) for child in children]
-                stack += children
-        return self.stable.gen_tree()
-
-    def _gen_code(self):
-        for code in self.rootNode.gen_code():
-            self.stdout.write('%s\n' % code)
 
 
 if __name__ == '__main__':
