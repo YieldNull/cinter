@@ -204,6 +204,7 @@ class MainWindow(QMainWindow):
         self.ui.actionAboutQt.triggered.connect(QApplication.aboutQt)
 
         # Menu "Run"
+        self.ui.actionRun.triggered.connect(self.run)
         self.ui.actionBuild.triggered.connect(self.runCompile)
         self.ui.actionShowStable.triggered.connect(self.runSemantic)
         self.ui.actionRunParser.triggered.connect(self.runParser)
@@ -232,7 +233,7 @@ class MainWindow(QMainWindow):
         :return:
         """
         p = self.genParser(Parser.mode_lexer)
-        tokenNode = p.lexse()
+        tokenNode = p.lexse() if p else None
         if not tokenNode:
             return
 
@@ -246,7 +247,7 @@ class MainWindow(QMainWindow):
         """
         # Begin parse
         p = self.genParser(Parser.mode_parser)
-        result = p.parse()
+        result = p.parse() if p else None
         if not result:
             return
 
@@ -263,7 +264,7 @@ class MainWindow(QMainWindow):
         :return:
         """
         p = self.genParser(Parser.mode_stable)
-        result = p.semantic()
+        result = p.semantic() if p else None
         if not result:
             return
 
@@ -279,7 +280,18 @@ class MainWindow(QMainWindow):
         :return:
         """
         p = self.genParser(Parser.mode_compile)
-        result = p.compile()
+        result = p.compile() if p else None
+        if not result:
+            return
+
+        codes, stable, syntaxNode, tokenNode = result
+        self.ui.treeViewToken.setModel(TreeModel(tokenNode))
+        self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
+
+    @pyqtSlot(bool)
+    def run(self, checked):
+        p = self.genParser(Parser.mode_execute)
+        result = p.execute() if p else None
         if not result:
             return
 

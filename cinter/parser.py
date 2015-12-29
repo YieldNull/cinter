@@ -33,6 +33,7 @@ create on '10/5/15 10:36 PM'
 import copy
 import sys
 
+from cinter.inter import Interpreter
 from tokens import *
 from nodes import *
 from stable import STable, SemanticsError
@@ -184,7 +185,22 @@ class Parser(object):
             for code in codes:
                 self.stdout.write('%s\n' % str(code))
 
+        self._close_stream()
         return codes, result[0], result[1], result[2]
+
+    def execute(self):
+        """
+        execute the code
+        """
+        result = self.compile()
+        if not result:
+            return None
+
+        interp = Interpreter(result[0], stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
+        interp.inter()
+        self._close_stream()
+
+        return result
 
     def _close_stream(self):
         self.stdin.close()
@@ -516,7 +532,7 @@ class Parser(object):
 
     def _parse_stmt_assign(self):
         """
-        assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON>) | (funcCallStmt)
+        assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON> | funcCallStmt)
         """
         self._expect(Token_Identifier)
         t = self.ahead

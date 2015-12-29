@@ -241,6 +241,12 @@ class ArrayNode(Node):
             self.append(literal)
             self.size = int(literal.token.lexeme)
 
+    def gen_code(self):
+        if isinstance(self.size, int):
+            return self.size
+        else:
+            return self.size.name
+
 
 class IdNode(LeafNode):
     def __init__(self, _id):
@@ -335,9 +341,10 @@ class FuncDefStmtNode(Node):
             stable.symbol_append(Symbol(param.name, param.stype), check=False)
 
     def gen_code(self):
-        codes = [Code(op='f=', arg1=Code.line + 2, tar='_%s' % self.name)]
+        codes = [Code(op='f=', arg1=Code.line + 3, tar='%s' % self.name), Code(op='j')]
         codes += self.childAt(2).gen_code()
         codes += self.childAt(3).gen_code()
+        codes[1].tar = codes[len(codes) - 1].line + 1  # jump over function definition
         return codes
 
 
@@ -428,10 +435,10 @@ class FuncDefParamList(Node):
     def gen_code(self):
         if self.params:
             # def and assign
-            codes = [Code(op='=', arg1='i' if self.params[i].data_type == tokens.Token_INT else 'r',
+            codes = [Code(op='=', arg1='_i' if self.params[i].data_type == tokens.Token_INT else '_r',
                           tar='%s' % self.params[i].name)
                      for i in range(len(self.params))]
-            codes += [Code(op='=', arg1='_p%d' % i, tar='%s' % self.params[i].name)
+            codes += [Code(op='=p', arg1='_p%d' % i, tar='%s' % self.params[i].name)
                       for i in range(len(self.params))]
             return codes
         else:
@@ -465,7 +472,7 @@ class FuncCallStmtNode(Node):
     def gen_code(self):
         codes = self.params.gen_code() if self.params else []
         codes += [Code(op='=', arg1=Code.line + 3, tar='_ra')]
-        codes.append(Code(op='j', tar='_%s' % self.name))
+        codes.append(Code(op='c', tar='%s' % self.name))
         return codes
 
 
@@ -493,7 +500,7 @@ class FuncCallParamList(Node):
         for i in range(self.childCount()):
             p = self.childAt(i).gen_code()
             codes += p
-            codes.append(Code(op='=', arg1=p[len(p) - 1].tar, tar='_p%d' % i))
+            codes.append(Code(op='p=', arg1=p[len(p) - 1].tar, tar='_p%d' % i))
         return codes
 
 
@@ -519,15 +526,15 @@ class ReturnStmtNode(Node):
         if self.childCount() > 0:
             codes = self.childAt(0).gen_code()
             codes.append(Code(op='=', arg1=codes[len(codes) - 1].tar, tar='_rv'))
-            codes.append(Code('j', tar='_ra'))
+            codes.append(Code('r', tar='_ra'))
         else:
-            codes = [Code(op='=', tar='_rv'), Code('j', tar='_ra')]
+            codes = [Code(op='=', arg1='00', tar='_rv'), Code('r', tar='_ra')]
         return codes
 
 
 class DeclareStmtNode(Node):
     """
-    declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+    declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* ( <ASSIGN> <SEMICOLON>
     """
 
     def __init__(self, data_type, id_list, arr=None):
@@ -561,7 +568,7 @@ class DeclareStmtNode(Node):
             stable.symbol_append(_id.gen_symbol())
 
     def gen_code(self):
-        arg1 = 'i' if self.stype.type == tokens.Token_INT else 'r'
+        arg1 = '_i' if self.stype.type == tokens.Token_INT else '_r'
         arg2 = ''
         if isinstance(self.stype, STypeArray):
             arg1 = '%s[]' % arg1
@@ -635,13 +642,13 @@ class WhileStmtNode(Node):
     def gen_code(self):
         cond = self.childAt(0).gen_code()
         stmts = self.childAt(1).gen_code()
-        cond[len(cond) - 1].tar = stmts[len(stmts) - 1].line + 1  # backfill the jump address
-        return cond + stmts
+        cond[len(cond) - 1].tar = stmts[len(stmts) - 1].line + 2  # backfill the jump address
+        return cond + stmts + [Code(op='j', tar=cond[0].line)]  # go back to cond
 
 
 class AssignStmtNode(Node):
     """
-    assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON>) | (funcCallStmt)
+    assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON> | funcCallStmt)
     """
 
     def __init__(self, _id, expr_or_func_call, arr=None):
@@ -683,7 +690,7 @@ class AssignStmtNode(Node):
         else:
             codes = self.funcCall.gen_code()
         if self.arr:
-            code = Code(op='[]=', arg1=self.arr.size, arg2=codes[len(codes) - 1].tar, tar=self.name)
+            code = Code(op='[]=', arg1=self.arr.gen_code(), arg2=codes[len(codes) - 1].tar, tar=self.name)
         else:
             code = Code(op='=', arg1=codes[len(codes) - 1].tar, tar=self.name)
         codes.append(code)
@@ -819,6 +826,10 @@ class FactorNode(Node):
             return child.gen_stype()  # expr
 
     def gen_code(self):
+        """
+        list of codes or variable name or single literal
+        :return:
+        """
         child = self.childAt(0)
         if isinstance(child, IdNode):
             arr = self.childAt(1)
