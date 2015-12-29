@@ -43,11 +43,6 @@ program	    ::=	exterStmts
 exterStmts  ::= ( declareStmt | FuncDefStmt)*
 innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt | returnStmt )*
 
-declareStmt ::= dataType <ID>  ( <COMMA> <ID> )* <SEMICOLON>
-assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
-ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
-whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
-
 funcDefStmt         ::= returnType  <ID>  <LPAREN> ( FuncDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
 funcDefParam        ::=  dataType <ID>
 funcDefParamList    ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
@@ -56,7 +51,12 @@ funcCallParamList   ::= ( expr   ( <COMMA> expr  )* | <VOID> )
 funcType            ::= <VOID>  | dataType
 returnStmt          ::= <RETURN> expression <SEMICOLON>
 
-dataType    ::= ( <INT> | <REAL> ) (array)?
+declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
+assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON>) | (funcCallStmt)
+ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
+whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
+
+dataType    ::= ( <INT> | <REAL> )
 array       ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
 
 condition	::=	expression compOp expression

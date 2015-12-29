@@ -1,5 +1,9 @@
 # coding:utf-8
 """
+Main window.
+
+Show ui and handle events.
+
 create on '11/14/15 9:43 PM'
 """
 import ntpath
@@ -136,17 +140,21 @@ class MainWindow(QMainWindow):
         self.ui.tabWidgetBrowser.tabCloseRequested.connect(self.closeBrowserTab)
         self.ui.tabWidgetBrowser.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetBrowser))
 
-        # File tree
+        # Left tree views
         self.fileTreeModel = QFileSystemModel(self)
-        self.fileTreeModel.setRootPath(QDir.currentPath())
+        self.fileTreeModel.setRootPath(QDir.currentPath() + QDir.separator() + 'test')
         self.ui.treeViewFile.setModel(self.fileTreeModel)
-        self.ui.treeViewFile.setRootIndex(self.fileTreeModel.index(QDir.currentPath()))
+        self.ui.treeViewFile.setRootIndex(self.fileTreeModel.index(QDir.currentPath() + QDir.separator() + 'test'))
         self.ui.treeViewFile.hideColumn(1)
         self.ui.treeViewFile.hideColumn(2)
         self.ui.treeViewFile.hideColumn(3)
-        self.ui.treeViewFile.setHeaderHidden(True)
         self.ui.treeViewFile.doubleClicked.connect(self.openFileFromTree)
 
+        self.ui.treeViewFile.setAnimated(True)
+        self.ui.treeViewSyntax.setAnimated(True)
+        self.ui.treeViewToken.setAnimated(True)
+
+        self.ui.treeViewFile.setHeaderHidden(True)
         self.ui.treeViewSyntax.setHeaderHidden(True)
         self.ui.treeViewToken.setHeaderHidden(True)
 
@@ -170,27 +178,16 @@ class MainWindow(QMainWindow):
         self.ui.textBrowser.setFont(font)
 
         # Bottom output tabs
-        self.TextConsole = None
-        self.TextOutput = None
-        self.TextError = None
-        self.ConsoleTypeConsole = 1
-        self.ConsoleTypeOutput = 2
-        self.ConsoleTypeError = 3
-
         self.ui.tabWidgetOutput.hide()
         self.ui.tabWidgetOutput.tabCloseRequested.connect(self.closeOutputTab)
         self.ui.tabWidgetOutput.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetOutput))
+        self.ui.tabWidgetOutput.setTabText(0, 'Console')
 
         # Previous opened tabs,for maximizing
         self.preOpenedTabs = None
 
         # Initial size of inner splitter
         self.ui.splitterInner.setSizes([180, 459 * 2 - 180])
-
-        # Bottom button
-        self.ui.pushButtonConsole.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeConsole))
-        self.ui.pushButtonOutput.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeOutput))
-        self.ui.pushButtonError.clicked.connect(lambda: self.manageOutputTabs(self.ConsoleTypeError))
 
         # Menu "File"
         self.ui.actionOpen.triggered.connect(self.openFile)
@@ -206,90 +203,89 @@ class MainWindow(QMainWindow):
         self.ui.menuView.triggered.connect(self.manageMenuView)
         self.ui.actionAboutQt.triggered.connect(QApplication.aboutQt)
 
+        # Menu "Run"
+        self.ui.actionBuild.triggered.connect(self.runCompile)
+        self.ui.actionShowStable.triggered.connect(self.runSemantic)
         self.ui.actionRunParser.triggered.connect(self.runParser)
         self.ui.actionRunLexer.triggered.connect(self.runLexer)
 
-    def runLexer(self):
+    def genParser(self, mode=Parser.mode_execute):
         """
-        Run lexer and present result on self.ui.tabToken Tree
+        Generate a parser instance
+        :param mode:
         :return:
         """
         if not self.saveFile():
             return
         self.showOutputPanel()
+        self.ui.actionViewConsole.setChecked(True)
 
         stdin = open(self.currentEditor.file, 'r')
         stdout = Console(self.ui.textBrowser)
         stderr = Console(self.ui.textBrowser, QColor().red())
-        p = Parser(stdin, stdout=stdout, stderr=stderr, lexer_mode=True)
-        tokenNode = p.lexse()
+        return Parser(stdin, stdout=stdout, stderr=stderr, mode=mode)
 
+    @pyqtSlot(bool)
+    def runLexer(self, checked):
+        """
+        Run lexer and present result on self.ui.tabToken Tree
+        :return:
+        """
+        p = self.genParser(Parser.mode_lexer)
+        tokenNode = p.lexse()
         if not tokenNode:
             return
 
         self.showBrowserTree(self.ui.tabToken, tokenNode)
 
-    def runParser(self):
+    @pyqtSlot(bool)
+    def runParser(self, checked):
         """
         Run parser and present result on self.ui.tabSyntax Tree
         :return:
         """
-        if not self.saveFile():
-            return
-        self.showOutputPanel()
-
         # Begin parse
-        stdin = open(self.currentEditor.file, 'r')
-        stdout = Console(self.ui.textBrowser)
-        stderr = Console(self.ui.textBrowser, QColor().red())
-        p = Parser(stdin, stdout=stdout, stderr=stderr, parser_mode=True)
-
+        p = self.genParser(Parser.mode_parser)
         result = p.parse()
         if not result:
-            self.ui.tabWidgetOutput.setTabText(0, 'Error')
-            self.TextError = self.ui.textBrowser.document().toPlainText()
             return
-        else:
-            self.ui.tabWidgetOutput.setTabText(0, 'Output')
-            self.TextOutput = self.ui.textBrowser.document().toPlainText()
 
         syntaxNode, tokenNode = result
-        self.showBrowserTree(self.ui.tabToken, tokenNode)
+
+        # self.showBrowserTree(self.ui.tabToken, tokenNode)
+        self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.showBrowserTree(self.ui.tabSyntax, syntaxNode)
 
-    def showOutputPanel(self):
+    @pyqtSlot(bool)
+    def runSemantic(self, checked):
         """
-        Clear previous output and show the ouput panel
+        run semantics analysing and print symbol table
         :return:
         """
-        self.ui.textBrowser.clear()
-        self.ui.tabWidgetOutput.show()
+        p = self.genParser(Parser.mode_stable)
+        result = p.semantic()
+        if not result:
+            return
 
-    def showBrowserTree(self, tab, rootNode):
+        stable, syntaxNode, tokenNode = result
+
+        self.ui.treeViewToken.setModel(TreeModel(tokenNode))
+        self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
+
+    @pyqtSlot(bool)
+    def runCompile(self, checked):
         """
-        Show treeView on tabWidgetBrowser
-        :param tab:
-        :param rootNode:
+        Run compiler and print Intermediate code
+        :return:
         """
-        model = TreeModel(rootNode)
+        p = self.genParser(Parser.mode_compile)
+        result = p.compile()
+        if not result:
+            return
 
-        if tab == self.ui.tabSyntax:
-            treeView = self.ui.treeViewSyntax
-            name = 'Syntax'
-        else:
-            treeView = self.ui.treeViewToken
-            name = 'Token'
-
-        treeView.setModel(model)
-        treeView.setAnimated(True)
-
-        # show the tab
-        index = self.ui.tabWidgetBrowser.indexOf(tab)
-        if index == -1:
-            self.ui.tabWidgetBrowser.addTab(tab, name)
-        self.ui.tabWidgetBrowser.setCurrentIndex(index)
-
-        self.addjustBrowserWidth()
+        codes, stable, syntaxNode, tokenNode = result
+        self.ui.treeViewToken.setModel(TreeModel(tokenNode))
+        self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
 
     def closeEvent(self, event):
         """
@@ -315,6 +311,42 @@ class MainWindow(QMainWindow):
                     event.accept()
                 else:
                     event.ignore()
+
+    def showOutputPanel(self):
+        """
+        Clear previous output and show the ouput panel
+        :return:
+        """
+        self.ui.textBrowser.clear()
+        self.ui.tabWidgetOutput.show()
+
+    def showBrowserTree(self, tab, rootNode):
+        """
+        Show treeView on tabWidgetBrowser
+        :param tab:
+        :param rootNode:
+        """
+        model = TreeModel(rootNode)
+
+        if tab == self.ui.tabSyntax:
+            treeView = self.ui.treeViewSyntax
+            name = 'Syntax'
+            self.ui.actionViewSystaxTree.setChecked(True)
+        else:
+            treeView = self.ui.treeViewToken
+            name = 'Token'
+            self.ui.actionViewTokenTree.setChecked(True)
+
+        treeView.setModel(model)
+
+        # show the tab
+        index = self.ui.tabWidgetBrowser.indexOf(tab)
+        if index == -1:
+            self.ui.tabWidgetBrowser.addTab(tab, name)
+            index = self.ui.tabWidgetBrowser.indexOf(tab)
+        self.ui.tabWidgetBrowser.setCurrentIndex(index)
+
+        self.addjustBrowserWidth()
 
     def connectMenuEditSlots(self):
         """
@@ -462,33 +494,6 @@ class MainWindow(QMainWindow):
                 if w != widget:
                     w.hide()
 
-    def manageOutputTabs(self, _type):
-        """
-        open or close tab on bottom output tabWidget
-        when bottom push button clicked
-        :param tab:
-        :param name:
-        :return:
-        """
-        if _type == self.ConsoleTypeConsole:
-            title = 'Console'
-            text = self.TextConsole
-        elif _type == self.ConsoleTypeOutput:
-            title = 'Output'
-            text = self.TextOutput
-        else:
-            title = 'Error'
-            text = self.TextError
-        if self.ui.tabWidgetOutput.isHidden():
-            self.ui.tabWidgetOutput.setTabText(0, title)
-            self.ui.textBrowser.setPlainText(text)
-            self.ui.tabWidgetOutput.show()
-        elif self.ui.tabWidgetOutput.tabText(0) == title:
-            self.ui.tabWidgetOutput.hide()
-        else:
-            self.ui.tabWidgetOutput.setTabText(0, title)
-            self.ui.textBrowser.setPlainText(text)
-
     @pyqtSlot(QAction)
     def manageMenuView(self, action):
         """
@@ -615,6 +620,7 @@ class MainWindow(QMainWindow):
             with open(filepath, 'w') as f:
                 f.write(self.currentEditor.document().toPlainText())
             self.currentEditor.document().setModified(False)
+            self.currentEditor.file = filepath
             return True
         else:
             return False

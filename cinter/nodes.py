@@ -126,7 +126,7 @@ class Node(object):
 
     def gen_code(self):
         """
-        Generate  Intermediate Language
+        Generate  Intermediate Code
         :return:
         """
         return []
@@ -352,6 +352,8 @@ class ReturnTypeNode(Node):
         :return:
         """
         super(ReturnTypeNode, self).__init__('ReturnType')
+        self.data_type = data_type
+
         if data_type:
             assert isinstance(data_type, DataTypeNode)
 
@@ -362,6 +364,12 @@ class ReturnTypeNode(Node):
 
     def gen_stype(self):
         return self.stype
+
+    def __str__(self):
+        if not self.data_type:
+            return 'ReturnType: VOID'
+        else:
+            return super(ReturnTypeNode, self).__str__()
 
 
 class FuncDefParam(Node):
@@ -401,6 +409,12 @@ class FuncDefParamList(Node):
             for param in params:
                 assert isinstance(param, FuncDefParam)
                 self.append(param)
+
+    def __str__(self):
+        if not self.params:
+            return 'FuncDefParams: VOID'
+        else:
+            return super(FuncDefParamList, self).__str__()
 
     def gen_stype(self):
         """

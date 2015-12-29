@@ -70,28 +70,26 @@ def _read_file(path):
 
 
 class Parser(object):
-    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr,
-                 lexer_mode=False, parser_mode=False,
-                 compiler_mode=False, execute_mode=False):
+    mode_lexer = 0
+    mode_parser = 1
+    mode_stable = 2
+    mode_compile = 3
+    mode_execute = 4
+
+    def __init__(self, stdin, stdout=sys.stdout, stderr=sys.stderr, mode=mode_execute):
         """
         Those streams will be closed at last.
         :param stdin: the source code input stream
         :param stdout: the standard output stream
         :param stderr: the standard error stream
-        :param lexer_mode: Run lexer
-        :param parser_mode: Run parser
-        :param compiler_mode: Run compiler
-        :param execute_mode: Run program
+        :param mode: mode
         """
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
         self.lexer = Lexer(stdin, stdout=stdout, stderr=stderr)
 
-        self.lexer_mode = lexer_mode
-        self.parser_mode = parser_mode
-        self.compiler_mode = compiler_mode
-        self.execute_mode = execute_mode
+        self.mode = mode
 
         self.tokenTree = TokenTree()
         self.rootNode = None
@@ -111,7 +109,6 @@ class Parser(object):
             try:
                 self.ahead = self.lexer.next_token()
             except InvalidTokenError:
-                self._close_stream()
                 return
         self._close_stream()
         return self.tokenTree.rootNode
@@ -126,15 +123,8 @@ class Parser(object):
         except InvalidTokenError:
             return None
         else:
-            # self.stdout.write('%s\n' % self.rootNode.gen_tree())
-            stable = self.semantic()
-            if stable:
-                error = self.stable.check_main()
-                if error:
-                    self.stderr.write('%s\n' % error)
-                else:
-                    # self.stdout.write(stable)
-                    self.compile()
+            if self.mode == Parser.mode_parser:
+                self.stdout.write('%s\n' % self.rootNode.gen_tree())
             return self.rootNode, self.tokenTree.rootNode
         finally:
             self._close_stream()
@@ -142,13 +132,19 @@ class Parser(object):
     def semantic(self):
         """
         Semantic analysing using DFS.
+        :return: root_stable, root_node, root_token_node
         """
+
+        # do parse first
+        parse_result = self.parse()
+        if not parse_result:
+            return None
+
         # add `read` and `write` function to stable
         self.stable.symbol_append(Symbol('read', STypeFunc(SType(tokens.Token_INT), [])))
         self.stable.symbol_append(Symbol('write', STypeFunc(SType(tokens.Token_VOID), [SType(Token_INT)])))
 
-        # the node and the direct symbol table which it is in
-        stack = [(self.rootNode, self.stable)]
+        stack = [(self.rootNode, self.stable)]  # the node and the direct symbol table which it is in
         while len(stack) > 0:
             node, stable = stack.pop()
             try:
@@ -161,12 +157,34 @@ class Parser(object):
                 children.reverse()
                 children = [(child, table or stable) for child in children]
                 stack += children
-        return self.stable.gen_tree()
+
+        # check main function
+        error = self.stable.check_main()
+        if error:
+            self.stderr.write('%s\n' % error)
+        elif self.mode == Parser.mode_stable:
+            self.stdout.write(self.stable.gen_tree())
+
+        self._close_stream()
+        return self.stable, parse_result[0], parse_result[1]
 
     def compile(self):
+        """
+        Gen Intermediate code
+        :return: code_list, root_stable, root_node, root_token_node
+        """
+        result = self.semantic()
+        if not result:
+            return None
+
         Code.line = -1  # initialize line before each compiling
-        for code in self.rootNode.gen_code():
-            self.stdout.write('%s\n' % str(code))
+        codes = self.rootNode.gen_code()
+
+        if self.mode == Parser.mode_compile:
+            for code in codes:
+                self.stdout.write('%s\n' % str(code))
+
+        return codes, result[0], result[1], result[2]
 
     def _close_stream(self):
         self.stdin.close()
@@ -176,7 +194,6 @@ class Parser(object):
     def _get(self):
         """
         get one token from lexer.
-        Print token if in lexer_mode
         :return:
         """
         if len(self.buff) == 0:
@@ -231,9 +248,9 @@ class Parser(object):
         if self.lexer.line != self.currentLine:
             self.currentLine = self.lexer.line
             self.tokenTree.newLine('Line %d' % self.currentLine)
-            if self.lexer_mode:
+            if self.mode == Parser.mode_lexer:
                 self.stdout.write('%s\n' % '%d: %s' % (self.currentLine, self.ahead))
-        elif self.lexer_mode:
+        elif self.mode == Parser.mode_lexer:
             self.stdout.write('%s\n' % '   %d: %s' % (self.currentLine, self.ahead))
 
         if self.ahead:

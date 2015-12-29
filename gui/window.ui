@@ -170,57 +170,6 @@
       </widget>
      </widget>
     </item>
-    <item row="1" column="0">
-     <layout class="QHBoxLayout" name="horizontalLayoutBottom">
-      <item>
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>138</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButtonConsole">
-        <property name="text">
-         <string>Console</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButtonOutput">
-        <property name="text">
-         <string>Output</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButtonError">
-        <property name="text">
-         <string>Error</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <spacer name="horizontalSpacer_4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>138</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menuBar">
@@ -266,6 +215,7 @@
     <addaction name="separator"/>
     <addaction name="actionRunLexer"/>
     <addaction name="actionRunParser"/>
+    <addaction name="actionShowStable"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -293,6 +243,7 @@
     </property>
     <addaction name="actionTestLexer"/>
     <addaction name="actionTestParser"/>
+    <addaction name="actionTestSemantic"/>
     <addaction name="actionTestCompiler"/>
     <addaction name="actionTestRuntime"/>
    </widget>
@@ -303,7 +254,6 @@
    <addaction name="menuTest"/>
    <addaction name="menuHelp"/>
   </widget>
-  <widget class="QStatusBar" name="statusBar"/>
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle">
     <string>toolBar</string>
@@ -578,6 +528,16 @@
   <action name="actionTestCompiler">
    <property name="text">
     <string>Compile</string>
+   </property>
+  </action>
+  <action name="actionTestSemantic">
+   <property name="text">
+    <string>Semantic</string>
+   </property>
+  </action>
+  <action name="actionShowStable">
+   <property name="text">
+    <string>Show Stable</string>
    </property>
   </action>
  </widget>

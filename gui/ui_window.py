@@ -2,11 +2,13 @@
 
 # Form implementation generated from reading ui file 'window.ui'
 #
-# Created by: PyQt5 UI code generator 5.4.2
+# Created: Mon Dec 28 22:30:03 2015
+#      by: PyQt5 UI code generator 5.2.1
 #
 # WARNING! All changes made in this file will be lost!
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 from gui.editor import CodeEditor
 
 
@@ -19,8 +21,6 @@ class Ui_MainWindow(object):
         self.centralWidget.setEnabled(True)
         self.centralWidget.setObjectName("centralWidget")
         self.gridLayout = QtWidgets.QGridLayout(self.centralWidget)
-        self.gridLayout.setContentsMargins(2, 0, 2, 0)
-        self.gridLayout.setSpacing(6)
         self.gridLayout.setObjectName("gridLayout")
         self.splitterOutter = QtWidgets.QSplitter(self.centralWidget)
         self.splitterOutter.setOrientation(QtCore.Qt.Vertical)
@@ -35,7 +35,6 @@ class Ui_MainWindow(object):
         self.tabFile.setObjectName("tabFile")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.tabFile)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout.setSpacing(6)
         self.verticalLayout.setObjectName("verticalLayout")
         self.treeViewFile = QtWidgets.QTreeView(self.tabFile)
         self.treeViewFile.setObjectName("treeViewFile")
@@ -45,7 +44,6 @@ class Ui_MainWindow(object):
         self.tabToken.setObjectName("tabToken")
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.tabToken)
         self.verticalLayout_3.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout_3.setSpacing(6)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.treeViewToken = QtWidgets.QTreeView(self.tabToken)
         self.treeViewToken.setObjectName("treeViewToken")
@@ -55,7 +53,6 @@ class Ui_MainWindow(object):
         self.tabSyntax.setObjectName("tabSyntax")
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(self.tabSyntax)
         self.verticalLayout_4.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout_4.setSpacing(6)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
         self.treeViewSyntax = QtWidgets.QTreeView(self.tabSyntax)
         self.treeViewSyntax.setObjectName("treeViewSyntax")
@@ -68,7 +65,6 @@ class Ui_MainWindow(object):
         self.tabEditor.setObjectName("tabEditor")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.tabEditor)
         self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
-        self.horizontalLayout.setSpacing(6)
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.codeEditor = CodeEditor(self.tabEditor)
         self.codeEditor.setObjectName("codeEditor")
@@ -81,31 +77,12 @@ class Ui_MainWindow(object):
         self.tabConsole.setObjectName("tabConsole")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.tabConsole)
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout_2.setSpacing(6)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.textBrowser = QtWidgets.QTextBrowser(self.tabConsole)
         self.textBrowser.setObjectName("textBrowser")
         self.verticalLayout_2.addWidget(self.textBrowser)
         self.tabWidgetOutput.addTab(self.tabConsole, "")
         self.gridLayout.addWidget(self.splitterOutter, 0, 0, 1, 1)
-        self.horizontalLayoutBottom = QtWidgets.QHBoxLayout()
-        self.horizontalLayoutBottom.setContentsMargins(2, 0, 2, 0)
-        self.horizontalLayoutBottom.setSpacing(6)
-        self.horizontalLayoutBottom.setObjectName("horizontalLayoutBottom")
-        spacerItem = QtWidgets.QSpacerItem(138, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.horizontalLayoutBottom.addItem(spacerItem)
-        self.pushButtonConsole = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButtonConsole.setObjectName("pushButtonConsole")
-        self.horizontalLayoutBottom.addWidget(self.pushButtonConsole)
-        self.pushButtonOutput = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButtonOutput.setObjectName("pushButtonOutput")
-        self.horizontalLayoutBottom.addWidget(self.pushButtonOutput)
-        self.pushButtonError = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButtonError.setObjectName("pushButtonError")
-        self.horizontalLayoutBottom.addWidget(self.pushButtonError)
-        spacerItem1 = QtWidgets.QSpacerItem(138, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.horizontalLayoutBottom.addItem(spacerItem1)
-        self.gridLayout.addLayout(self.horizontalLayoutBottom, 1, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralWidget)
         self.menuBar = QtWidgets.QMenuBar(MainWindow)
         self.menuBar.setGeometry(QtCore.QRect(0, 0, 930, 25))
@@ -123,9 +100,6 @@ class Ui_MainWindow(object):
         self.menuTest = QtWidgets.QMenu(self.menuBar)
         self.menuTest.setObjectName("menuTest")
         MainWindow.setMenuBar(self.menuBar)
-        self.statusBar = QtWidgets.QStatusBar(MainWindow)
-        self.statusBar.setObjectName("statusBar")
-        MainWindow.setStatusBar(self.statusBar)
         self.toolBar = QtWidgets.QToolBar(MainWindow)
         self.toolBar.setMovable(False)
         self.toolBar.setObjectName("toolBar")
@@ -226,6 +200,10 @@ class Ui_MainWindow(object):
         self.actionQuit.setObjectName("actionQuit")
         self.actionTestCompiler = QtWidgets.QAction(MainWindow)
         self.actionTestCompiler.setObjectName("actionTestCompiler")
+        self.actionTestSemantic = QtWidgets.QAction(MainWindow)
+        self.actionTestSemantic.setObjectName("actionTestSemantic")
+        self.actionShowStable = QtWidgets.QAction(MainWindow)
+        self.actionShowStable.setObjectName("actionShowStable")
         self.menuFile.addAction(self.actionNew)
         self.menuFile.addAction(self.actionOpen)
         self.menuFile.addSeparator()
@@ -246,6 +224,7 @@ class Ui_MainWindow(object):
         self.menuRun.addSeparator()
         self.menuRun.addAction(self.actionRunLexer)
         self.menuRun.addAction(self.actionRunParser)
+        self.menuRun.addAction(self.actionShowStable)
         self.menuHelp.addAction(self.actionAbout)
         self.menuHelp.addSeparator()
         self.menuHelp.addAction(self.actionAboutQt)
@@ -258,6 +237,7 @@ class Ui_MainWindow(object):
         self.menuView.addAction(self.actionViewSystaxTree)
         self.menuTest.addAction(self.actionTestLexer)
         self.menuTest.addAction(self.actionTestParser)
+        self.menuTest.addAction(self.actionTestSemantic)
         self.menuTest.addAction(self.actionTestCompiler)
         self.menuTest.addAction(self.actionTestRuntime)
         self.menuBar.addAction(self.menuFile.menuAction())
@@ -294,9 +274,6 @@ class Ui_MainWindow(object):
         self.tabWidgetEditor.setTabText(self.tabWidgetEditor.indexOf(self.tabEditor),
                                         _translate("MainWindow", "New File"))
         self.tabWidgetOutput.setTabText(self.tabWidgetOutput.indexOf(self.tabConsole), _translate("MainWindow", "Page"))
-        self.pushButtonConsole.setText(_translate("MainWindow", "Console"))
-        self.pushButtonOutput.setText(_translate("MainWindow", "Output"))
-        self.pushButtonError.setText(_translate("MainWindow", "Error"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))
         self.menuEditor.setTitle(_translate("MainWindow", "Edit"))
         self.menuRun.setTitle(_translate("MainWindow", "Run"))
@@ -345,6 +322,8 @@ class Ui_MainWindow(object):
         self.actionQuit.setText(_translate("MainWindow", "Quit"))
         self.actionQuit.setShortcut(_translate("MainWindow", "Ctrl+Q"))
         self.actionTestCompiler.setText(_translate("MainWindow", "Compile"))
+        self.actionTestSemantic.setText(_translate("MainWindow", "Semantic"))
+        self.actionShowStable.setText(_translate("MainWindow", "Show Stable"))
 
 
 import cinter_rc
