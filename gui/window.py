@@ -44,6 +44,7 @@ class Console(object):
             self.editor.setTextColor(self.color)
         self.editor.moveCursor(QTextCursor.End)
         self.editor.insertPlainText(content)
+        self.editor.update()
 
     def close(self):
         pass

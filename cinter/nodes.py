@@ -205,6 +205,12 @@ class LiteralNode(LeafNode):
         else:
             return SType(tokens.Token_REAL)
 
+    def gen_code(self):
+        if self.token == tokens.Token_IntLiteral:
+            return int(self.token.lexeme)
+        else:
+            return float(self.token.lexeme)
+
 
 class DataTypeNode(LeafNode):
     """
@@ -435,7 +441,7 @@ class FuncDefParamList(Node):
     def gen_code(self):
         if self.params:
             # def and assign
-            codes = [Code(op='=', arg1='_i' if self.params[i].data_type == tokens.Token_INT else '_r',
+            codes = [Code(op='=', arg1='_i' if self.params[i].data_type == tokens.Token_INT else '_f',
                           tar='%s' % self.params[i].name)
                      for i in range(len(self.params))]
             codes += [Code(op='=p', arg1='_p%d' % i, tar='%s' % self.params[i].name)
@@ -568,7 +574,7 @@ class DeclareStmtNode(Node):
             stable.symbol_append(_id.gen_symbol())
 
     def gen_code(self):
-        arg1 = '_i' if self.stype.type == tokens.Token_INT else '_r'
+        arg1 = '_i' if self.stype.type == tokens.Token_INT else '_f'
         arg2 = ''
         if isinstance(self.stype, STypeArray):
             arg1 = '%s[]' % arg1
@@ -687,12 +693,14 @@ class AssignStmtNode(Node):
     def gen_code(self):
         if self.expr:
             codes = self.expr.gen_code()
+            arg = codes[len(codes) - 1].tar
         else:
             codes = self.funcCall.gen_code()
+            arg = '_rv'
         if self.arr:
-            code = Code(op='[]=', arg1=self.arr.gen_code(), arg2=codes[len(codes) - 1].tar, tar=self.name)
+            code = Code(op='[]=', arg1=self.arr.gen_code(), arg2=arg, tar=self.name)
         else:
-            code = Code(op='=', arg1=codes[len(codes) - 1].tar, tar=self.name)
+            code = Code(op='=', arg1=arg, tar=self.name)
         codes.append(code)
         return codes
 
@@ -834,7 +842,7 @@ class FactorNode(Node):
         if isinstance(child, IdNode):
             arr = self.childAt(1)
             if arr:
-                return [Code(op='=[]', arg1=child.gen_code(), arg2=arr.size, tar=Code.gen_temp())]
+                return [Code(op='=[]', arg1=child.gen_code(), arg2=arr.gen_code(), tar=Code.gen_temp())]
             else:
                 return [Code(op='=', arg1=child.gen_code(), tar=Code.gen_temp())]
         elif isinstance(child, LiteralNode):

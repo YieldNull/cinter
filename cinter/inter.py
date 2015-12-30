@@ -52,7 +52,12 @@ class Symbol(object):
         self.name = name
         self.type = _type
         self.size = size
-        self.value = value
+        if self.size > 0:
+            self.value = [0 if _type == Symbol.type_int else 0.0 for i in range(size)]
+        elif value is None:
+            self.value = 0 if _type == Symbol.type_int else 0.0
+        else:
+            self.value = value
 
 
 class Frame(object):
@@ -60,8 +65,9 @@ class Frame(object):
     Function frame
     """
 
-    def __init__(self):
+    def __init__(self, raddress):
         self.symbols = []
+        self.raddress = raddress  # return address
 
     def append(self, symbol):
         self.symbols.append(symbol)
@@ -81,9 +87,8 @@ class Interpreter(object):
         self.stderr = stderr
 
         self.codes = codes  # code list to be interpreted
-        self.functions = []  # functions
-        self.stack = [Frame()]  # stack of function frame, initializes with main Frame
-        self.symbols = [  # global single value symbols
+        self.stack = []  # stack of function frame, initializes with main Frame
+        self.globals = [  # global single value symbols
             Symbol('_ra', Symbol.type_int, value=len(codes)),  # return address
             Symbol('_rv', Symbol.type_real)  # return value
         ]
@@ -102,12 +107,13 @@ class Interpreter(object):
             tar = code.tar
 
             if op == '=':
-                if str(arg1)[:2] in ['_i', '_r']:
+                if str(arg1)[:2] in ['_i', '_f']:
                     self._handle_def(arg1, arg2, tar)
                 else:
                     self._handle_assign(arg1, tar)
             elif op == 'f=':
                 if tar == 'main':  # enter the main function
+                    self.stack.append(Frame(len(self.codes)))
                     line += 2
                     continue
                 self._handle_def_func(arg1, tar)
@@ -149,11 +155,18 @@ class Interpreter(object):
         if symbol:
             return symbol
 
-        for symbol in self.symbols:
+        for symbol in self.globals:
             if symbol.name == name:
                 return symbol
         else:
             return None
+
+    def _find_or_create(self, name, _type):
+        symbol = self._find(name)
+        if symbol is None:
+            symbol = Symbol(name, _type)
+            self.top_frame.append(symbol)
+        return symbol
 
     def _handle_def(self, _type, size, tar):
         """
@@ -166,51 +179,47 @@ class Interpreter(object):
             symbol = Symbol(tar, dtype)
         else:  # array
             symbol = Symbol(tar, dtype, size=size)
-        self.top_frame.append(symbol)
+
+        if len(self.stack) == 0:
+            self.globals.append(symbol)
+        else:
+            self.top_frame.append(symbol)
 
     def _handle_assign(self, source, tar):
         """
         find the two symbols and assign the value of `source`  to `tar`
         """
-        # TODO normalize type
         try:
-            float(source)  # literal
-        except ValueError:
+            float(source)
+        except ValueError:  # variable name
             s_source = self._find(source)
             _type = s_source.type
             value = s_source.value
-        else:
-            _type = Symbol.type_real
-            value = float(source)
+        else:  # literal
+            _type = Symbol.type_int if isinstance(source, int) else Symbol.type_real
+            value = source
 
-        s_tar = self._find(tar)
-        if s_tar is None:
-            symbol = Symbol(tar, _type, value=value)
-            self.top_frame.append(symbol)
+        tar = self._find_or_create(tar, _type)
+        if _type == Symbol.type_int:
+            tar.value = int(value)
         else:
-            if s_tar.type == Symbol.type_int:
-                s_tar.value = int(value)
-            else:
-                s_tar.value = float(value)
+            tar.value = float(value)
 
     def _handle_def_func(self, entrance, name):
         """
         Add the function to function list
         """
-        self.functions.append(Symbol(name, Symbol.type_func, value=entrance))
+        self.globals.append(Symbol(name, Symbol.type_func, value=entrance))
 
     def _handle_arr_access(self, name, index, tar):
         """
         assign the [index]th value of the array with name of `name` to tar
         """
         arr = self._find(name)
-        tar = self._find(tar)
+        tar = self._find_or_create(tar, arr.type)
 
         if not isinstance(index, int):  # index is a variable name
             index = self._find(index).value
-
-        if index > arr.size - 1:
-            raise IndexError
 
         tar.value = arr.value[index]  # arr's value is a list of literal value
 
@@ -229,22 +238,21 @@ class Interpreter(object):
         """
         arg1,arg2 are all variable names, because every literal value are assigned to a temp variable
         """
-        arg1 = self._find(arg1).value
-        arg2 = self._find(arg2).value
+        arg1 = self._find(arg1)
+        arg2 = self._find(arg2)
+        left = arg1.value
+        right = arg2.value
 
-        symbol = self._find(tar)
-        if symbol is None:
-            symbol = Symbol(tar, Symbol.type_real)
-            self.top_frame.append(symbol)
+        symbol = self._find_or_create(tar, arg1.type)
 
         if op == '+':
-            symbol.value = arg1 + arg2
+            symbol.value = left + right
         elif op == '-':
-            symbol.value = arg1 - arg2
+            symbol.value = left - right
         elif op == '*':
-            symbol.value = arg1 * arg2
+            symbol.value = left * right
         else:
-            symbol.value = arg1 / arg2  # may cause ZeroDivisionError
+            symbol.value = left / right  # may cause ZeroDivisionError
 
     def _handle_jump_cond(self, cond, arg1, arg2):
         """
@@ -272,7 +280,7 @@ class Interpreter(object):
         symbol = self._find(tar)
         if symbol is None:
             symbol = Symbol(tar, source.type)
-            self.symbols.append(symbol)
+            self.globals.append(symbol)
         symbol.value = source.value
 
     def _handle_param_receive(self, source, tar):
@@ -288,26 +296,26 @@ class Interpreter(object):
         Call a function.
         return function entrance address
         """
+
+        # function return address is just set before call
+        ra = self._find('_ra').value
         if name == 'write':
             param = self._find('_p0').value
-            ra = self._find('_ra').value
             self.stdout.write('%s\n' % str(param))
             return ra
         elif name == 'read':
             rv = self._find('_rv')
-            ra = self._find('_ra').address
             rv.value = self.stdin.read()
             return ra
         else:
             func = self._find(name)
-            frame = Frame()
-            self.stack.append(frame)
+            self.stack.append(Frame(ra))
             return func.value
 
     def _handle_func_return(self, tar):
         """
         return the return address
         """
-        self.functions.pop()
-        ra = self._find(tar)
-        return ra.value
+        ra = self.top_frame.raddress
+        self.stack.pop()
+        return ra
