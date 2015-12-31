@@ -46,13 +46,14 @@ innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt 
 funcDefStmt         ::= returnType  <ID>  <LPAREN> ( FuncDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
 funcDefParam        ::=  dataType <ID>
 funcDefParamList    ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
-funcCallStmt        ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
+funcCallExpr        ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN>
+funcCallStmt        ::= funcCallExpr <SEMICOLON>
 funcCallParamList   ::= ( expr   ( <COMMA> expr  )* | <VOID> )
 funcType            ::= <VOID>  | dataType
 returnStmt          ::= <RETURN> expression <SEMICOLON>
 
 declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
-assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON>) | (funcCallStmt)
+assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
 ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
 whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
 
@@ -62,7 +63,7 @@ array       ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
 condition	::=	expression compOp expression
 expression  ::=	term (addOp term)*
 term	    ::=	factor (mulOp factor)*
-factor	    ::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
+factor	    ::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | funcCallExpr | <LPAREN> expression <RPAREN>
 
 compOp      ::=	<LT> | <GT> | <EQUAL> | <NEQUAL>
 addOp	    ::=	<PLUS> | <MINUS>

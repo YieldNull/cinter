@@ -235,6 +235,7 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_lexer)
         tokenNode = p.lexse() if p else None
+        p.close_stream()
         if not tokenNode:
             return
 
@@ -249,6 +250,7 @@ class MainWindow(QMainWindow):
         # Begin parse
         p = self.genParser(Parser.mode_parser)
         result = p.parse() if p else None
+        p.close_stream()
         if not result:
             return
 
@@ -266,6 +268,7 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_stable)
         result = p.semantic() if p else None
+        p.close_stream()
         if not result:
             return
 
@@ -282,6 +285,7 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_compile)
         result = p.compile() if p else None
+        p.close_stream()
         if not result:
             return
 
@@ -293,6 +297,7 @@ class MainWindow(QMainWindow):
     def run(self, checked):
         p = self.genParser(Parser.mode_execute)
         result = p.execute() if p else None
+        p.close_stream()
         if not result:
             return
 

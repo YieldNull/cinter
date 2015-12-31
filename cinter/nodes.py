@@ -119,15 +119,16 @@ class Node(object):
     def gen_stype(self):
         """
         Generate the symbol type in symbol table.
-        For semantics analysing
-        :return:
+        For semantics analysing.
+
+        :return: **must return a list**
         """
-        return None
+        return []
 
     def gen_code(self):
         """
         Generate  Intermediate Code
-        :return:
+        :return: **must return a list**
         """
         return []
 
@@ -451,13 +452,13 @@ class FuncDefParamList(Node):
             return []
 
 
-class FuncCallStmtNode(Node):
+class FuncCallExprNode(Node):
     """
-    funcCallStmt    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
+    funcCallExpr    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN>
     """
 
     def __init__(self, _id, params):
-        super(FuncCallStmtNode, self).__init__('FuncCallStmt')
+        super(FuncCallExprNode, self).__init__('FuncCallExpr')
 
         self.append(_id)
         self.id = _id
@@ -470,7 +471,10 @@ class FuncCallStmtNode(Node):
 
     def gen_location(self):
         row, column = self.id.gen_location()
-        return super(FuncCallStmtNode, self).gen_location() % (row, column, self.id.name)
+        return super(FuncCallExprNode, self).gen_location() % (row, column, self.id.name)
+
+    def gen_stype(self):
+        return [SUnknown(self.name, is_func=True)]
 
     def gen_stable(self, stable):
         stable.invoke_func(self.name, self.params.gen_stype() if self.params else [])
@@ -479,7 +483,22 @@ class FuncCallStmtNode(Node):
         codes = self.params.gen_code() if self.params else []
         codes += [Code(op='=', arg1=Code.line + 3, tar='_ra')]
         codes.append(Code(op='c', tar='%s' % self.name))
+        codes.append(Code(op='=', arg1='_rv', tar=Code.gen_temp()))
         return codes
+
+
+class FuncCallStmtNode(Node):
+    """
+    funcCallStmt    ::= funcCallExpr  <SEMICOLON>
+    """
+
+    def __init__(self, funcCallExpr):
+        super(FuncCallStmtNode, self).__init__('FuncCallStmt')
+        self.append(funcCallExpr)
+        self.funcCall = funcCallExpr
+
+    def gen_code(self):
+        return self.funcCall.gen_code()
 
 
 class FuncCallParamList(Node):
@@ -630,7 +649,10 @@ class IfStmtNode(Node):
             cond[len(cond) - 1].tar = stmt2[0].line
         else:
             stmt2 = []
-            cond[len(cond) - 1].tar = stmt1[len(stmt1) - 1].line + 1
+            if len(stmt1) > 0:
+                cond[len(cond) - 1].tar = stmt1[len(stmt1) - 1].line + 1
+            else:
+                cond[len(cond) - 1].tar = cond[len(cond) - 1].line + 1
         return cond + stmt1 + stmt2
 
 
@@ -654,26 +676,21 @@ class WhileStmtNode(Node):
 
 class AssignStmtNode(Node):
     """
-    assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON> | funcCallStmt)
+    assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
     """
 
-    def __init__(self, _id, expr_or_func_call, arr=None):
+    def __init__(self, _id, expr, arr=None):
         super(AssignStmtNode, self).__init__('AssignStmt')
         self.name = _id.name
         self.id = _id
         self.arr = arr
-        if isinstance(expr_or_func_call, ExprNode):
-            self.expr = expr_or_func_call
-            self.funcCall = None
-        else:
-            self.expr = None
-            self.funcCall = expr_or_func_call
+        self.expr = expr
 
-        _id.brother = arr or expr_or_func_call
+        _id.brother = arr or expr
         self.append(_id)
         if arr:
             self.append(arr)
-        self.append(expr_or_func_call)
+        self.append(expr)
 
     def gen_location(self):
         row, column = self.id.gen_location()
@@ -682,21 +699,11 @@ class AssignStmtNode(Node):
     def gen_stable(self, stable):
         if self.arr and (self.arr.size is None):
             raise IndexMissingError()
-
-        if self.expr:
-            stable.invoke_assign(self.name, is_arr=True if self.arr else False,
-                                 stype_list=self.expr.gen_stype())
-        else:
-            stable.invoke_assign(self.name, is_arr=True if self.arr else False,
-                                 funcname=self.funcCall.name)
+        stable.invoke_assign(self.name, self.expr.gen_stype(), is_arr=True if self.arr else False)
 
     def gen_code(self):
-        if self.expr:
-            codes = self.expr.gen_code()
-            arg = codes[len(codes) - 1].tar
-        else:
-            codes = self.funcCall.gen_code()
-            arg = '_rv'
+        codes = self.expr.gen_code()
+        arg = codes[len(codes) - 1].tar
         if self.arr:
             code = Code(op='[]=', arg1=self.arr.gen_code(), arg2=arg, tar=self.name)
         else:
@@ -801,15 +808,18 @@ class TermNode(Node):
 
 class FactorNode(Node):
     """
-    factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
+    factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )?
+                | funcCallExpr  | <LPAREN> expression <RPAREN>
     """
 
-    def __init__(self, literal=None, expr=None, _id=None, arr=None):
+    def __init__(self, literal=None, expr=None, _id=None, arr=None, funcCall=None):
         super(FactorNode, self).__init__('Factor')
         if literal:
             self.append(literal)
         elif expr:
             self.append(expr)
+        elif funcCall:
+            self.append(funcCall)
         else:
             self.append(_id)
             if arr:
@@ -831,7 +841,7 @@ class FactorNode(Node):
         elif isinstance(child, LiteralNode):
             return [child.gen_stype()]
         else:
-            return child.gen_stype()  # expr
+            return child.gen_stype()  # expr or funcCall
 
     def gen_code(self):
         """

@@ -25,9 +25,9 @@ int main(){
 	int[3] arr;
 
 	void_test();			// call param `Empty` test
-	a=void_test2(void);	// call param `void` test
-
-	normal_test(a+3/9-4*arr[1]);	//call param `expression`test
+		
+   // call param `void` test
+	normal_test(void_test2(void)+3/9-4*arr[1]);	//call param `expression`test
 	multi_args_test(1,2.0);
 
 	return a+3/9-4*arr[1]; //return `expression` test

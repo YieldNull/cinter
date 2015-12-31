@@ -14,7 +14,7 @@ void main(){
     hello();
 
     int c;
-    c=foo(3+4,5+6);
-   
+    c=foo(3+4,5+6)+foo(1,2);
+    write(c);
     return;
 }

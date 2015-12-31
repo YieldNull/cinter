@@ -111,7 +111,6 @@ class Parser(object):
                 self.ahead = self.lexer.next_token()
             except InvalidTokenError:
                 return
-        self._close_stream()
         return self.tokenTree.rootNode
 
     def parse(self):
@@ -127,8 +126,6 @@ class Parser(object):
             if self.mode == Parser.mode_parser:
                 self.stdout.write('%s\n' % self.rootNode.gen_tree())
             return self.rootNode, self.tokenTree.rootNode
-        finally:
-            self._close_stream()
 
     def semantic(self):
         """
@@ -166,7 +163,6 @@ class Parser(object):
         elif self.mode == Parser.mode_stable:
             self.stdout.write(self.stable.gen_tree())
 
-        self._close_stream()
         return self.stable, parse_result[0], parse_result[1]
 
     def compile(self):
@@ -185,7 +181,6 @@ class Parser(object):
             for code in codes:
                 self.stdout.write('%s\n' % str(code))
 
-        self._close_stream()
         return codes, result[0], result[1], result[2]
 
     def execute(self):
@@ -198,11 +193,10 @@ class Parser(object):
 
         interp = Interpreter(result[0], stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
         interp.inter()
-        self._close_stream()
 
         return result
 
-    def _close_stream(self):
+    def close_stream(self):
         self.stdin.close()
         self.stdout.close()
         self.stderr.close()
@@ -373,21 +367,6 @@ class Parser(object):
         self._expect(Token_SEMICOLON)
         return DeclareStmtNode(data_type, id_list, arr=arr)
 
-    def _parse_stmt_func_call(self):
-        """
-        funcCallStmt    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN> <SEMICOLON>
-        """
-        _id = self._expect(Token_Identifier)
-        self._expect(Token_LPAREN)
-
-        params = None
-        if not self._match(Token_RPAREN):
-            self._unget()
-            params = self._parse_func_call_param_list()
-            self._expect(Token_RPAREN)
-        self._expect(Token_SEMICOLON)
-        return FuncCallStmtNode(IdNode(_id), params)
-
     def _parse_stmt_return(self):
         """
         returnStmt      ::= <RETURN> (expression)? <SEMICOLON>
@@ -400,6 +379,28 @@ class Parser(object):
             expr = self._parse_expr()
         self._expect(Token_SEMICOLON)
         return ReturnStmtNode(returnNode, expr)
+
+    def _parse_stmt_func_call(self):
+        """
+        funcCallStmt    ::= funcCallExpr <SEMICOLON>
+        """
+        funcCall = self._parse_func_call_expr()
+        self._expect(Token_SEMICOLON)
+        return FuncCallStmtNode(funcCall)
+
+    def _parse_func_call_expr(self):
+        """
+        funcCallExpr    ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN>
+        """
+        _id = self._expect(Token_Identifier)
+        self._expect(Token_LPAREN)
+
+        params = None
+        if not self._match(Token_RPAREN):
+            self._unget()
+            params = self._parse_func_call_param_list()
+            self._expect(Token_RPAREN)
+        return FuncCallExprNode(IdNode(_id), params)
 
     def _parse_func_def_param(self):
         """
@@ -532,24 +533,15 @@ class Parser(object):
 
     def _parse_stmt_assign(self):
         """
-        assignStmt  ::= <ID> (array)? <ASSIGN> (expression <SEMICOLON> | funcCallStmt)
+        assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
         """
         self._expect(Token_Identifier)
         t = self.ahead
         arr = self._match_arr()
         self._expect(Token_ASSIGN)
-
-        temp1 = self._get()
-        temp2 = self._get()
-        self._unget(temp2)
-        self._unget(temp1)
-        if (temp1 == Token_LPAREN) or (temp2 in [Token_PLUS, Token_MINUS, Token_TIMES,
-                                                 Token_DIVIDE, Token_SEMICOLON, Token_LBRACKET]):
-            func_or_expr = self._parse_expr()
-            self._expect(Token_SEMICOLON)
-        else:
-            func_or_expr = self._parse_stmt_func_call()
-        return AssignStmtNode(IdNode(t), func_or_expr, arr)
+        expr = self._parse_expr()
+        self._expect(Token_SEMICOLON)
+        return AssignStmtNode(IdNode(t), expr, arr=arr)
 
     def _parse_cond(self):
         """
@@ -597,7 +589,8 @@ class Parser(object):
 
     def _parse_factor(self):
         """
-        factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )? | <LPAREN> expression <RPAREN>
+        factor	::= <REAL_LITERAL> | <INT_LITERAL> | <ID> ( array )?
+                    | funcCallExpr | <LPAREN> expression <RPAREN>
         """
         self._expect((Token_RealLiteral, Token_IntLiteral, Token_Identifier, Token_LPAREN))
         t = self.ahead
@@ -606,8 +599,15 @@ class Parser(object):
             self._expect(Token_RPAREN)
             return FactorNode(expr=expr)
         elif self.ahead == Token_Identifier:
-            arr = self._match_arr()
-            return FactorNode(_id=IdNode(t), arr=arr)
+            m = self._match(Token_LPAREN)
+            self._unget()
+            if m:
+                self._unget(t)
+                funcCall = self._parse_func_call_expr()
+                return FactorNode(funcCall=funcCall)
+            else:
+                arr = self._match_arr()
+                return FactorNode(_id=IdNode(t), arr=arr)
         else:
             return FactorNode(literal=LiteralNode(t))
 

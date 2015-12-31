@@ -5,12 +5,8 @@ int fibonacci(int n){
     if(n<3){
     	return 1;
 	 }
-
-    int t1,t2;
-    t1=fibonacci(n-1);
-    t2=fibonacci(n-2);
 	 
-    return t1+t2;
+    return fibonacci(n-1)+fibonacci(n-2);
 }
 
 void main(){

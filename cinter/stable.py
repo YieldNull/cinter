@@ -79,9 +79,10 @@ class STypeFunc(SType):
 
 
 class SUnknown(object):
-    def __init__(self, name, is_arr=False):
+    def __init__(self, name, is_arr=False, is_func=False):
         self.name = name
         self.is_arr = is_arr
+        self.is_func = is_func
 
 
 class Symbol(object):
@@ -177,33 +178,18 @@ class STable(object):
         else:
             return symbol
 
-    def invoke_assign(self, name, is_arr=False, stype_list=None, funcname=None):
+    def invoke_assign(self, name, stype_list, is_arr=False, ):
         """
         check the validity of the `AssignStmt`.
         right value can be an expression or a function call
         :param name: the name of the left-value
-        :param is_arr: left-value is_array or not
         :param stype_list: a list of the stype of each right value in the expression
-        :param funcname: function name
+        :param is_arr: left-value is_array or not
         :return:
         """
         # calc left type
         left_type = self._invoke(name, is_arr).stype.type
-        symbol = None
-        if stype_list:
-            right_type = self._calc_data_type(stype_list)
-        else:
-            symbol = self._symbol_find(funcname)
-            if symbol:
-                right_type = symbol.stype.type
-                # if isinstance(symbol.stype.stype, STypeArray) ^ is_arr:
-                #     raise TypeMismatchError()
-            else:
-                raise UndefinedError()
-
-        # ignore `read` function,'cause it returns int or real
-        if symbol and symbol.name == 'read':
-            return
+        right_type = self._calc_data_type(stype_list)
 
         if left_type != right_type:
             raise TypeMismatchError()
@@ -245,6 +231,7 @@ class STable(object):
         if symbol.name == 'write':
             return
 
+        # matching call param types with defined param types
         for i in range(len(defined_types)):
             stype1 = defined_types[i]
             stype2_list = param_stype_lists[i]  # a list of stype because each param can be a expression
@@ -366,7 +353,7 @@ class STable(object):
         the_type = None
         for stype in stype_or_list:
             if isinstance(stype, SUnknown):  # calc the type of the id
-                stype = self._invoke(stype.name, stype.is_arr).stype
+                stype = self._invoke(stype.name, stype.is_arr, stype.is_func).stype
             if the_type:
                 if stype.type != the_type:
                     raise TypeMismatchError()
@@ -374,11 +361,12 @@ class STable(object):
                 the_type = stype.type
         return the_type
 
-    def _invoke(self, name, is_arr=False):
+    def _invoke(self, name, is_arr=False, is_func=False):
         """
         When invoking an `id`, check its validity.
         :param name: the name of `id`
         :param is_arr: id is an array? default is False
+        :param is_func: id is a function name? default is False
         :return: the symbol we found with the name or raise an error
         """
         symbol = self._symbol_find(name)  # find the symbol with name `name`
@@ -389,8 +377,8 @@ class STable(object):
         if isinstance(symbol.stype, STypeArray) ^ is_arr:
             raise TypeMismatchError()
 
-        # symbol cannot be a function, 'cause function would be handled in `invoke_func`
-        if isinstance(symbol.stype, STypeFunc):
+        # symbol.stype must be corresponding to `is_func`
+        if isinstance(symbol.stype, STypeFunc) ^ is_func:
             raise TypeMismatchError()
 
         return symbol

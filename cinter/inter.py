@@ -316,6 +316,14 @@ class Interpreter(object):
         """
         return the return address
         """
+
+        # reset return value's type
+        rv = self._find('_rv')
+        if isinstance(rv.value, float):
+            rv.type = Symbol.type_real
+        else:
+            rv.type = Symbol.type_int
+
         ra = self.top_frame.raddress
         self.stack.pop()
         return ra
