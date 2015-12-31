@@ -1,8 +1,7 @@
 // test if-then-else-then if-then
 
 void main(){
-    int a;
-    a=9;
+    int a=9;
 
     if(a>0){
         write(a); // 9

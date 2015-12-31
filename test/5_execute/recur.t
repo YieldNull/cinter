@@ -10,10 +10,9 @@ int fibonacci(int n){
 }
 
 void main(){
-    int i,r;
-    i=0;
+    int i=0;
     while(i<20){
-		r=fibonacci(i);
+		int r=fibonacci(i);
 		write(r);
       i=i+1;
 	 }

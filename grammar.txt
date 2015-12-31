@@ -52,13 +52,16 @@ funcCallParamList   ::= ( expr   ( <COMMA> expr  )* | <VOID> )
 funcType            ::= <VOID>  | dataType
 returnStmt          ::= <RETURN> expression <SEMICOLON>
 
-declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
-assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
-ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
-whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
-
 dataType    ::= ( <INT> | <REAL> )
 array       ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
+
+arrayInit   ::= <LBRACE>( INT_LITERAL (<COMMA> INT_LITERAL)* | REAL_LITERAL(<COMMA> REAL_LITERAL)* ) <RBRACE>
+declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* ( <ASSIGN> expression | arrayInit )<SEMICOLON>
+assignStmt  ::= <ID> (array)? <ASSIGN> expression <SEMICOLON>
+
+
+ifStmt	    ::=	<IF> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE> ( <ELSE> <LBRACE> innerStmts <RBRACE> )?
+whileStmt   ::= <WHILE> <LPAREN> condition <RPAREN> <LBRACE> innerStmts <RBRACE>
 
 condition	::=	expression compOp expression
 expression  ::=	term (addOp term)*

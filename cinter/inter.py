@@ -151,9 +151,10 @@ class Interpreter(object):
         find in top frame and global symbols
         if not found, return None
         """
-        symbol = self.top_frame.find(name)
-        if symbol:
-            return symbol
+        if len(self.stack) > 0:
+            symbol = self.top_frame.find(name)
+            if symbol:
+                return symbol
 
         for symbol in self.globals:
             if symbol.name == name:
@@ -162,16 +163,49 @@ class Interpreter(object):
             return None
 
     def _find_or_create(self, name, _type):
+        """
+        find a symbol with `name` or create it
+        :param name:
+        :param _type: symbol type
+        :return:
+        """
         symbol = self._find(name)
         if symbol is None:
             symbol = Symbol(name, _type)
             self.top_frame.append(symbol)
         return symbol
 
+    def _gen_type_and_value(self, literal_or_name):
+        """
+        generate Symbol type and value of the literal or name
+        **used in assign**
+
+        :param literal_or_name:
+        :return: (Symbol type, value)
+        """
+        try:
+            float(literal_or_name)
+        except ValueError:  # variable name
+            s_source = self._find(literal_or_name)
+            return s_source.type, s_source.value
+        else:  # literal
+            _type = Symbol.type_int if isinstance(literal_or_name, int) else Symbol.type_real
+            value = literal_or_name
+            return _type, value
+
     def _handle_def(self, _type, size, tar):
         """
         Declare a variable or assign value to it.
         """
+
+        # find the symbol in top frame, 'cause variable can be redefined in while statement,
+        symbol = self.top_frame.find(tar) if len(self.stack) > 0 else None
+        if symbol:
+            if symbol.type == Symbol.type_int:
+                symbol.value = 0
+            else:
+                symbol.value = 0.0
+            return
 
         # gen data type
         dtype = Symbol.type_int if _type[:2] == '_i' else Symbol.type_real
@@ -189,15 +223,7 @@ class Interpreter(object):
         """
         find the two symbols and assign the value of `source`  to `tar`
         """
-        try:
-            float(source)
-        except ValueError:  # variable name
-            s_source = self._find(source)
-            _type = s_source.type
-            value = s_source.value
-        else:  # literal
-            _type = Symbol.type_int if isinstance(source, int) else Symbol.type_real
-            value = source
+        _type, value = self._gen_type_and_value(source)
 
         tar = self._find_or_create(tar, _type)
         if _type == Symbol.type_int:
@@ -228,11 +254,11 @@ class Interpreter(object):
         assign source's value to the [index]th value of the array with name of `name`
         """
         arr = self._find(name)
-        source = self._find(source)
+        _type, value = self._gen_type_and_value(source)
 
         if not isinstance(index, int):  # index is a variable name
             index = self._find(index).value
-        arr.value[index] = source.value
+        arr.value[index] = value
 
     def _handle_arithmetic(self, op, arg1, arg2, tar):
         """

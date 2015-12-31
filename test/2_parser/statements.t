@@ -10,7 +10,7 @@ int a;
 int[3] arr;
 
 void main(){
-	read(a);
+	a=read();
 
 	while(1==(a+9*8-arr[0])){	// `while` test
     	write(9);

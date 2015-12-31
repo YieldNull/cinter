@@ -247,7 +247,7 @@ class Lexer(object):
         self.read_line_rest()
         self.stderr.write('%s\n' % msg)
         self.stderr.write('%s\n' % ''.join(self.read))
-        self.stderr.write('%s\n' % ' ' * (offset - 1) + '^')
+        self.stderr.write('%s' % ' ' * (offset - 1) + '^')
 
         # sys.exit(0)
         raise InvalidTokenError()

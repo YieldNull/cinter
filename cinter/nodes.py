@@ -559,12 +559,23 @@ class ReturnStmtNode(Node):
 
 class DeclareStmtNode(Node):
     """
-    declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* ( <ASSIGN> <SEMICOLON>
+    declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* ( <ASSIGN> ( expression | arrayInit ) )?<SEMICOLON>
     """
 
-    def __init__(self, data_type, id_list, arr=None):
+    def __init__(self, data_type, id_list, arr=None, expr_or_init=None):
+        """
+        In parser **must check**:
+            1. dataType compare with arrayInit type
+            2. array.size must be a literal
+            3. single ID cannot be assigned with arrayInit, array cannot be assigned with expr
+            4. literals in arrayInit must be of the same type
+            5. init list cannot be larger than array size
+        """
         super(DeclareStmtNode, self).__init__('DeclareStmt')
         assert isinstance(data_type, DataTypeNode)
+
+        self.id_list = id_list
+        self.assign = expr_or_init
 
         stype = data_type.gen_stype()
         if arr:
@@ -574,6 +585,7 @@ class DeclareStmtNode(Node):
         else:
             self.stype = stype
 
+        # append to tree
         self.append(data_type)
         if arr:
             self.append(arr)
@@ -582,23 +594,74 @@ class DeclareStmtNode(Node):
             self.append(_id)
             _id.set_stype(self.stype)  # set id type
 
-        self.id_list = id_list
+        if expr_or_init:
+            self.append(expr_or_init)
 
     def gen_location(self):
         row, column = self.id_list[0].gen_location()
         return super(DeclareStmtNode, self).gen_location() % (row, column, self.id_list[0].name)
 
     def gen_stable(self, stable):
+        """
+        if arrayInit, type has been checked in parser.
+        so wo just have to check <ID>* = expression,
+        in other word, just compare dataType'stype with expression'stype
+        """
         for _id in self.id_list:
             stable.symbol_append(_id.gen_symbol())
 
+        if self.assign:
+            stable.invoke_compare([self.stype], self.assign.gen_stype())
+
     def gen_code(self):
-        arg1 = '_i' if self.stype.type == tokens.Token_INT else '_f'
-        arg2 = ''
-        if isinstance(self.stype, STypeArray):
-            arg1 = '%s[]' % arg1
-            arg2 = self.stype.size
-        return [Code(op='=', arg1=arg1, arg2=arg2, tar=_id.gen_code()) for _id in self.id_list]
+        data_type = '_i' if self.stype.type == tokens.Token_INT else '_f'
+        if not self.assign:  # pure declare
+            arg1 = data_type
+            arg2 = ''
+            if isinstance(self.stype, STypeArray):
+                arg1 = '%s[]' % arg1
+                arg2 = self.stype.size
+            return [Code(op='=', arg1=arg1, arg2=arg2, tar=_id.gen_code()) for _id in self.id_list]
+        else:  # decalre and assign
+            if isinstance(self.stype, STypeArray):  # array init
+                codes = []
+                literals = self.assign.literals
+                size = self.stype.size
+                for _id in self.id_list:
+                    codes.append(Code(op='=', arg1='%s[]' % data_type, arg2=size, tar=_id.gen_code()))
+                    for i in range(len(literals)):
+                        codes.append(Code(op='[]=', arg1=i, arg2=literals[i].gen_code(), tar=_id.gen_code()))
+                return codes
+            else:
+                codes = self.assign.gen_code()  # inited with expr
+                arg1 = codes[len(codes) - 1].tar
+                codes += [Code(op='=', arg1=arg1, tar=_id.gen_code()) for _id in self.id_list]
+                return codes
+
+
+class ArrayInitNode(Node):
+    """
+    arrayInit   ::= <LBRACE>( INT_LITERAL (<COMMA> INT_LITERAL)* | REAL_LITERAL(<COMMA> REAL_LITERAL)* ) <RBRACE>
+    """
+
+    def __init__(self, literal_list):
+        """
+        int literal or real literal list.
+        ** must be the same type**
+        :param literal_list:
+        :return:
+        """
+        super(ArrayInitNode, self).__init__('ArrayInitNode')
+        assert len(literal_list) > 0
+
+        self.literals = literal_list
+        self.size = len(literal_list)
+
+        for literal in literal_list:
+            self.append(literal)
+
+    def gen_stype(self):
+        return self.literals[0].gen_stype()
 
 
 class InnerStmtsNode(Node):

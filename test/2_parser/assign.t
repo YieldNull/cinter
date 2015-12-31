@@ -3,8 +3,11 @@
 int a;
 real[3] b,d;
 
+int foo(){
+	return 1;
+}
 void main(){
-	a=10;
+	a=foo();
 
 	b[0]=1.5;
 	b[1]=a;

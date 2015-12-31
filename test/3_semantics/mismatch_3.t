@@ -1,8 +1,8 @@
 // compare mismatch
 // both side of compare should own the same data type
 
-int demo(){
-	return 1;
+real demo(){
+	return 1.3;
 }
 
 void main(){

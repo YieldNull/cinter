@@ -160,6 +160,7 @@ class Parser(object):
         error = self.stable.check_main()
         if error:
             self.stderr.write('%s\n' % error)
+            return None
         elif self.mode == Parser.mode_stable:
             self.stdout.write(self.stable.gen_tree())
 
@@ -348,25 +349,6 @@ class Parser(object):
         self._expect(Token_RBRACE)
         return FuncDefStmtNode(rtype, _id, params, stmts)
 
-    def _parse_stmt_declare(self):
-        """
-        declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* <SEMICOLON>
-        """
-        id_list = []
-        data_type = self._parse_data_type()
-        arr = self._match_arr()
-        _id = self._expect(Token_Identifier)
-        id_list.append(IdNode(_id))
-        while True:
-            if self._match(Token_COMMA):
-                _id = self._expect(Token_Identifier)
-                id_list.append((IdNode(_id)))
-            else:
-                self._unget()
-                break
-        self._expect(Token_SEMICOLON)
-        return DeclareStmtNode(data_type, id_list, arr=arr)
-
     def _parse_stmt_return(self):
         """
         returnStmt      ::= <RETURN> (expression)? <SEMICOLON>
@@ -455,6 +437,77 @@ class Parser(object):
             self._unget()
             data_type = self._parse_data_type()
             return ReturnTypeNode(data_type)
+
+    def _parse_stmt_declare(self):
+        """
+        declareStmt ::= dataType (array)? <ID>  ( <COMMA> <ID> )* ( <ASSIGN> ( expression | arrayInit ) )?<SEMICOLON>
+        """
+        id_list = []
+        data_type = self._parse_data_type()
+        arr = self._match_arr(int_index=True)
+        _id = self._expect(Token_Identifier)
+        id_list.append(IdNode(_id))
+        while True:
+            if self._match(Token_COMMA):
+                _id = self._expect(Token_Identifier)
+                id_list.append((IdNode(_id)))
+            else:
+                self._unget()
+                break
+
+        if self._match(Token_ASSIGN):  # handle assign
+            if self._match(Token_LBRACE):  # array init
+                self._unget()
+                if not arr:  # raise an error
+                    self._expect([Token_IntLiteral, Token_RealLiteral,
+                                  Token_Identifier, Token_LPAREN])
+
+                arrInit = self._parse_arr_init(data_type.token, arr.size)
+                self._expect(Token_SEMICOLON)
+                return DeclareStmtNode(data_type, id_list, arr=arr, expr_or_init=arrInit)
+            else:  # expression
+                self._unget()
+                if arr:
+                    self._expect(Token_LBRACE)  # raise an error
+                expr = self._parse_expr()
+                self._expect(Token_SEMICOLON)
+                return DeclareStmtNode(data_type, id_list, expr_or_init=expr)
+        else:
+            self._unget()
+            self._expect(Token_SEMICOLON)
+            return DeclareStmtNode(data_type, id_list, arr=arr)
+
+    def _parse_arr_init(self, data_type, size):
+        """
+        arrayInit   ::= <LBRACE>( INT_LITERAL (<COMMA> INT_LITERAL)* | REAL_LITERAL(<COMMA> REAL_LITERAL)* ) <RBRACE>
+        :return:
+        """
+        self._expect(Token_LBRACE)
+        self._expect([Token_IntLiteral, Token_RealLiteral])
+        liter = self.ahead
+
+        _type = Token_INT if isinstance(liter, IntLiteral) else Token_REAL
+
+        if _type != data_type:  # raise an error
+            self._unget()
+            if _type == Token_INT:
+                self._expect(Token_RealLiteral)
+            else:
+                self._expect(Token_IntLiteral)
+
+        literals = [LiteralNode(liter)]
+        while True:
+            if len(literals) == size:
+                break
+            m = self._match(Token_COMMA)
+            if m:
+                li = self._expect(Token_IntLiteral if liter == Token_IntLiteral else Token_RealLiteral)
+            else:
+                self._unget()
+                break
+            literals.append(LiteralNode(li))
+        self._expect(Token_RBRACE)
+        return ArrayInitNode(literals)
 
     def _parse_inner_stmts(self):
         """
@@ -618,7 +671,7 @@ class Parser(object):
         self._expect((Token_LT, Token_GT, Token_EQUAL, Token_NEQUAL))
         return CompNode(LeafNode(self.ahead))
 
-    def _match_arr(self):
+    def _match_arr(self, int_index=False):
         """
         array   ::=	<LBRACKET> ( <INT_LITERAL> | <ID> ) ? <RBRACKET>
 
@@ -626,6 +679,8 @@ class Parser(object):
         Else return None.
 
         Error should be raised when the array is under parsing.
+
+        :param int_index: index must be int literal? default is false
         """
 
         m = self._match(Token_LBRACKET)
@@ -640,6 +695,10 @@ class Parser(object):
             index = self._expect([Token_IntLiteral, Token_Identifier])
             self._expect(Token_RBRACKET)
             if isinstance(index, Identifier):
+                if int_index:
+                    self._unget()
+                    self._unget(index)
+                    self._expect(Token_IntLiteral)  # this code will raise an error
                 return ArrayNode(_id=IdNode(index))
             else:
                 return ArrayNode(literal=LiteralNode(index))

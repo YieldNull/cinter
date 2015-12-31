@@ -20,8 +20,7 @@ void multi_args_test(int a,real b){
 }
 
 int main(){
-	int a;
-	a=0;
+	int a=0;
 	int[3] arr;
 
 	void_test();			// call param `Empty` test

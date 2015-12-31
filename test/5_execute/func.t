@@ -22,14 +22,13 @@ void print_real(real a){
 
 void main(){
     a=9;
-    int b;
-    b=10;
+    int b=10;
 
     a=add(a,b);
     print_int(a);
 
-    real c,d;
-    c=10.0;d=2.0;
+    real c=10.0;
+    real d=2.0;
 
     c=divide(c,d);
     print_real(c);
