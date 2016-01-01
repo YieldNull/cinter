@@ -126,6 +126,8 @@ class Parser(object):
             if self.mode == Parser.mode_parser:
                 self.stdout.write('%s\n' % self.rootNode.gen_tree())
             return self.rootNode, self.tokenTree.rootNode
+        finally:
+            self.stdin.close()
 
     def semantic(self):
         """
@@ -184,23 +186,23 @@ class Parser(object):
 
         return codes, result[0], result[1], result[2]
 
-    def execute(self):
+    def execute(self, codes=None):
         """
         execute the code
+        :param codes: if codes, just execute from codes
         """
-        result = self.compile()
-        if not result:
-            return None
+        if not codes:
+            result = self.compile()
+            if not result:
+                return None
 
-        interp = Interpreter(result[0], stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
-        interp.inter()
+            interp = Interpreter(result[0], stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
+            interp.inter()
 
-        return result
-
-    def close_stream(self):
-        self.stdin.close()
-        self.stdout.close()
-        self.stderr.close()
+            return result
+        else:
+            interp = Interpreter(codes, stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
+            interp.inter()
 
     def _get(self):
         """

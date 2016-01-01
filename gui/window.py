@@ -13,26 +13,31 @@ from ui_window import Ui_MainWindow
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QTextCursor, QColor, QFont
 from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
-                          Qt, QFile, QModelIndex, QVariant, QAbstractItemModel)
+                          Qt, QFile, QModelIndex, QVariant, QAbstractItemModel, pyqtSignal, QThread, QObject)
 from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
                              QFileDialog, QAction, QApplication, QMessageBox)
 
 __author__ = 'hejunjie'
 
 
-class Console(object):
+class Console(QObject):
     """
     The stream-like-object to redirect stream to Qt editor document
     """
+    update = pyqtSignal(str)  # something is writen to console
 
-    def __init__(self, editor, color=None):
+    def __init__(self, editor, color=None, parent=None):
         """
         :param editor: QTextBrowser or QPlainTextEditor etc.
         :param color: text color
         :return:
         """
+        super(Console, self).__init__(parent)
+
         self.editor = editor
         self.color = color
+        if self.color:
+            self.editor.setTextColor(self.color)
 
     def write(self, content):
         """
@@ -40,14 +45,24 @@ class Console(object):
         :param content:
         :return:
         """
-        if self.color:
-            self.editor.setTextColor(self.color)
-        self.editor.moveCursor(QTextCursor.End)
-        self.editor.insertPlainText(content)
-        self.editor.update()
+        self.update.emit(content)
 
     def close(self):
         pass
+
+
+class ExecuteThread(QThread):
+    """
+    A thread for execute Intermediate Code
+    """
+
+    def __init__(self, func, codes, parent=None):
+        super(ExecuteThread, self).__init__(parent)
+        self.func = func
+        self.codes = codes
+
+    def run(self):
+        self.func(self.codes)
 
 
 class TreeModel(QAbstractItemModel):
@@ -223,9 +238,21 @@ class MainWindow(QMainWindow):
         self.ui.actionViewConsole.setChecked(True)
 
         stdin = open(self.currentEditor.file, 'r')
-        stdout = Console(self.ui.textBrowser)
-        stderr = Console(self.ui.textBrowser, QColor().red())
+        stdout = Console(self.ui.textBrowser, parent=self)
+        stderr = Console(self.ui.textBrowser, color=QColor().red(), parent=self)
+        stdout.update.connect(self.updateOutput)
+        stderr.update.connect(self.updateOutput)
         return Parser(stdin, stdout=stdout, stderr=stderr, mode=mode)
+
+    @pyqtSlot(str)
+    def updateOutput(self, content):
+        """
+        Update bottom text browser when content is writen to it.
+        :param content:
+        :return:
+        """
+        self.ui.textBrowser.moveCursor(QTextCursor.End)
+        self.ui.textBrowser.insertPlainText(content)
 
     @pyqtSlot(bool)
     def runLexer(self, checked):
@@ -235,7 +262,6 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_lexer)
         tokenNode = p.lexse() if p else None
-        p.close_stream()
         if not tokenNode:
             return
 
@@ -250,7 +276,6 @@ class MainWindow(QMainWindow):
         # Begin parse
         p = self.genParser(Parser.mode_parser)
         result = p.parse() if p else None
-        p.close_stream()
         if not result:
             return
 
@@ -268,7 +293,6 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_stable)
         result = p.semantic() if p else None
-        p.close_stream()
         if not result:
             return
 
@@ -285,7 +309,6 @@ class MainWindow(QMainWindow):
         """
         p = self.genParser(Parser.mode_compile)
         result = p.compile() if p else None
-        p.close_stream()
         if not result:
             return
 
@@ -295,15 +318,22 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(bool)
     def run(self, checked):
+        """
+        compile and run the source code
+
+        compile in main thread and run in a worker thread
+        """
         p = self.genParser(Parser.mode_execute)
-        result = p.execute() if p else None
-        p.close_stream()
+        result = p.compile() if p else None
         if not result:
             return
 
         codes, stable, syntaxNode, tokenNode = result
         self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
+
+        thread = ExecuteThread(p.execute, codes, self)
+        thread.start()
 
     def closeEvent(self, event):
         """
