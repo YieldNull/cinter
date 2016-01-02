@@ -615,28 +615,27 @@ class DeclareStmtNode(Node):
 
     def gen_code(self):
         data_type = '_i' if self.stype.type == tokens.Token_INT else '_f'
-        if not self.assign:  # pure declare
-            arg1 = data_type
-            arg2 = ''
-            if isinstance(self.stype, STypeArray):
-                arg1 = '%s[]' % arg1
-                arg2 = self.stype.size
-            return [Code(op='=', arg1=arg1, arg2=arg2, tar=_id.gen_code()) for _id in self.id_list]
-        else:  # decalre and assign
+        # pure declare
+        arg1 = data_type
+        arg2 = ''
+        if isinstance(self.stype, STypeArray):
+            arg1 = '%s[]' % arg1
+            arg2 = self.stype.size
+        codes = [Code(op='=', arg1=arg1, arg2=arg2, tar=_id.gen_code()) for _id in self.id_list]
+
+        if self.assign:  # decalre and assign
             if isinstance(self.stype, STypeArray):  # array init
-                codes = []
                 literals = self.assign.literals
                 size = self.stype.size
                 for _id in self.id_list:
                     codes.append(Code(op='=', arg1='%s[]' % data_type, arg2=size, tar=_id.gen_code()))
                     for i in range(len(literals)):
                         codes.append(Code(op='[]=', arg1=i, arg2=literals[i].gen_code(), tar=_id.gen_code()))
-                return codes
             else:
-                codes = self.assign.gen_code()  # inited with expr
+                codes += self.assign.gen_code()  # inited with expr
                 arg1 = codes[len(codes) - 1].tar
                 codes += [Code(op='=', arg1=arg1, tar=_id.gen_code()) for _id in self.id_list]
-                return codes
+        return codes
 
 
 class ArrayInitNode(Node):

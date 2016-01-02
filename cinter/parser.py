@@ -186,24 +186,6 @@ class Parser(object):
 
         return codes, result[0], result[1], result[2]
 
-    def execute(self, codes=None):
-        """
-        execute the code
-        :param codes: if codes, just execute from codes
-        """
-        if not codes:
-            result = self.compile()
-            if not result:
-                return None
-
-            interp = Interpreter(result[0], stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
-            interp.inter()
-
-            return result
-        else:
-            interp = Interpreter(codes, stdin=self.stdin, stdout=self.stdout, stderr=self.stderr)
-            interp.inter()
-
     def _get(self):
         """
         get one token from lexer.

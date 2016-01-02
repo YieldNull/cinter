@@ -163,7 +163,7 @@
           <number>0</number>
          </property>
          <item>
-          <widget class="QTextBrowser" name="textBrowser"/>
+          <widget class="QPlainTextEdit" name="console"/>
          </item>
         </layout>
        </widget>
@@ -237,21 +237,10 @@
     <addaction name="actionViewTokenTree"/>
     <addaction name="actionViewSystaxTree"/>
    </widget>
-   <widget class="QMenu" name="menuTest">
-    <property name="title">
-     <string>Test</string>
-    </property>
-    <addaction name="actionTestLexer"/>
-    <addaction name="actionTestParser"/>
-    <addaction name="actionTestSemantic"/>
-    <addaction name="actionTestCompiler"/>
-    <addaction name="actionTestRuntime"/>
-   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEditor"/>
    <addaction name="menuView"/>
    <addaction name="menuRun"/>
-   <addaction name="menuTest"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="toolBar">

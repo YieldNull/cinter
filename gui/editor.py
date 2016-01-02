@@ -55,7 +55,7 @@ class CodeEditor(QPlainTextEdit):
         font.setPointSize(12)
         self.setFont(font)
         metrics = QFontMetrics(font)
-        self.setTabStopWidth(3 * metrics.width('a'))
+        self.setTabStopWidth(4 * metrics.width('a'))  # tab width
 
         # highlighter
         self.highlighter = Highlighter(self.document())

@@ -7,13 +7,16 @@ Show ui and handle events.
 create on '11/14/15 9:43 PM'
 """
 import ntpath
+
+from cinter.inter import Interpreter
 from cinter.parser import Parser
 from gui.editor import CodeEditor
 from ui_window import Ui_MainWindow
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QTextCursor, QColor, QFont
 from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
-                          Qt, QFile, QModelIndex, QVariant, QAbstractItemModel, pyqtSignal, QThread, QObject)
+                          Qt, QFile, QModelIndex, QVariant, QAbstractItemModel, pyqtSignal, QThread, QObject, QMutex,
+                          QWaitCondition)
 from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
                              QFileDialog, QAction, QApplication, QMessageBox)
 
@@ -26,7 +29,7 @@ class Console(QObject):
     """
     update = pyqtSignal(str)  # something is writen to console
 
-    def __init__(self, editor, color=None, parent=None):
+    def __init__(self, editor, color=None, parent=None, waitCond=None):
         """
         :param editor: QTextBrowser or QPlainTextEditor etc.
         :param color: text color
@@ -39,6 +42,10 @@ class Console(QObject):
         if self.color:
             self.editor.setTextColor(self.color)
 
+        self.mutex = QMutex()
+        self.waitCond = waitCond
+        self.input = None
+
     def write(self, content):
         """
         Append to editor's document
@@ -47,8 +54,20 @@ class Console(QObject):
         """
         self.update.emit(content)
 
+    def read(self):
+        self.editor.setReadOnly(False)
+
+        self.mutex.lock()
+        self.waitCond.wait(self.mutex)
+        self.mutex.unlock()
+        return self.input
+
     def close(self):
         pass
+
+    @pyqtSlot(str)
+    def receivedInput(self, content):
+        self.input = content
 
 
 class ExecuteThread(QThread):
@@ -56,13 +75,12 @@ class ExecuteThread(QThread):
     A thread for execute Intermediate Code
     """
 
-    def __init__(self, func, codes, parent=None):
+    def __init__(self, work, parent=None):
         super(ExecuteThread, self).__init__(parent)
-        self.func = func
-        self.codes = codes
+        self.work = work
 
     def run(self):
-        self.func(self.codes)
+        self.work()
 
 
 class TreeModel(QAbstractItemModel):
@@ -144,6 +162,8 @@ class TreeModel(QAbstractItemModel):
 
 
 class MainWindow(QMainWindow):
+    inputReceived = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.ui = Ui_MainWindow()
@@ -185,13 +205,16 @@ class MainWindow(QMainWindow):
         self.ui.tabWidgetEditor.tabBarClicked.connect(self.switchEditorTab)
         self.ui.tabWidgetEditor.tabBarDoubleClicked.connect(lambda: self.maximizeTabs(self.ui.tabWidgetEditor))
 
-        # Bottom textBrowser font
+        # Bottom console
         font = QFont()
         font.setFamily("Courier")
         font.setStyleHint(QFont.Monospace)
         font.setFixedPitch(True)
         font.setPointSize(10)
-        self.ui.textBrowser.setFont(font)
+        self.ui.console.setFont(font)
+        self.ui.console.setReadOnly(True)
+        self.waitInputCond = QWaitCondition()
+        self.oldConsoleText = None
 
         # Bottom output tabs
         self.ui.tabWidgetOutput.hide()
@@ -226,34 +249,6 @@ class MainWindow(QMainWindow):
         self.ui.actionRunParser.triggered.connect(self.runParser)
         self.ui.actionRunLexer.triggered.connect(self.runLexer)
 
-    def genParser(self, mode=Parser.mode_execute):
-        """
-        Generate a parser instance
-        :param mode:
-        :return:
-        """
-        if not self.saveFile():
-            return
-        self.showOutputPanel()
-        self.ui.actionViewConsole.setChecked(True)
-
-        stdin = open(self.currentEditor.file, 'r')
-        stdout = Console(self.ui.textBrowser, parent=self)
-        stderr = Console(self.ui.textBrowser, color=QColor().red(), parent=self)
-        stdout.update.connect(self.updateOutput)
-        stderr.update.connect(self.updateOutput)
-        return Parser(stdin, stdout=stdout, stderr=stderr, mode=mode)
-
-    @pyqtSlot(str)
-    def updateOutput(self, content):
-        """
-        Update bottom text browser when content is writen to it.
-        :param content:
-        :return:
-        """
-        self.ui.textBrowser.moveCursor(QTextCursor.End)
-        self.ui.textBrowser.insertPlainText(content)
-
     @pyqtSlot(bool)
     def runLexer(self, checked):
         """
@@ -263,9 +258,11 @@ class MainWindow(QMainWindow):
         p = self.genParser(Parser.mode_lexer)
         tokenNode = p.lexse() if p else None
         if not tokenNode:
+            self.endEcho(False)
             return
 
         self.showBrowserTree(self.ui.tabToken, tokenNode)
+        self.endEcho(True)
 
     @pyqtSlot(bool)
     def runParser(self, checked):
@@ -277,6 +274,7 @@ class MainWindow(QMainWindow):
         p = self.genParser(Parser.mode_parser)
         result = p.parse() if p else None
         if not result:
+            self.endEcho(False)
             return
 
         syntaxNode, tokenNode = result
@@ -284,6 +282,7 @@ class MainWindow(QMainWindow):
         # self.showBrowserTree(self.ui.tabToken, tokenNode)
         self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.showBrowserTree(self.ui.tabSyntax, syntaxNode)
+        self.endEcho(True)
 
     @pyqtSlot(bool)
     def runSemantic(self, checked):
@@ -294,12 +293,14 @@ class MainWindow(QMainWindow):
         p = self.genParser(Parser.mode_stable)
         result = p.semantic() if p else None
         if not result:
+            self.endEcho(False)
             return
 
         stable, syntaxNode, tokenNode = result
 
         self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
+        self.endEcho(True)
 
     @pyqtSlot(bool)
     def runCompile(self, checked):
@@ -310,11 +311,13 @@ class MainWindow(QMainWindow):
         p = self.genParser(Parser.mode_compile)
         result = p.compile() if p else None
         if not result:
+            self.endEcho(False)
             return
 
         codes, stable, syntaxNode, tokenNode = result
         self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
+        self.endEcho(True)
 
     @pyqtSlot(bool)
     def run(self, checked):
@@ -326,14 +329,69 @@ class MainWindow(QMainWindow):
         p = self.genParser(Parser.mode_execute)
         result = p.compile() if p else None
         if not result:
+            self.endEcho(False)
             return
 
         codes, stable, syntaxNode, tokenNode = result
         self.ui.treeViewToken.setModel(TreeModel(tokenNode))
         self.ui.treeViewSyntax.setModel(TreeModel(syntaxNode))
 
-        thread = ExecuteThread(p.execute, codes, self)
+        console = Console(self.ui.console, parent=self, waitCond=self.waitInputCond)
+        console.update.connect(self.updateOutput)
+        self.inputReceived.connect(console.receivedInput)
+        self.ui.console.blockCountChanged.connect(self.waitInput)
+
+        interp = Interpreter(codes, stdin=console, stdout=console, stderr=console)
+        thread = ExecuteThread(interp.inter, self)
         thread.start()
+
+    def genParser(self, mode=Parser.mode_execute):
+        """
+        Generate a parser instance
+        :param mode:
+        :return:
+        """
+        if not self.saveFile():
+            return
+        self.showOutputPanel()
+        self.ui.actionViewConsole.setChecked(True)
+        self.beginEcho()
+
+        stdin = open(self.currentEditor.file, 'r')
+        console = Console(self.ui.console, parent=self)
+        console.update.connect(self.updateOutput)
+
+        return Parser(stdin, stdout=console, stderr=console, mode=mode)
+
+    def beginEcho(self):
+        self.updateOutput('%s\n' % self.currentEditor.file)
+
+    def endEcho(self, success=True):
+        msg = 'successfully' if success else 'unsuccessfully'
+        self.updateOutput('Process finished %s\n' % msg)
+
+    @pyqtSlot(str)
+    def updateOutput(self, content):
+        """
+        Update bottom text browser when content is writen to it.
+        :param content:
+        :return:
+        """
+        self.ui.console.moveCursor(QTextCursor.End)
+        self.ui.console.insertPlainText('%s' % content)
+        self.oldConsoleText = self.ui.console.toPlainText()
+
+    @pyqtSlot(int)
+    def waitInput(self, newBlockCount):
+        """
+        :param newBlockCount: line count
+        :return:
+        """
+        if not self.ui.console.isReadOnly():
+            self.inputReceived.emit(self.ui.console.toPlainText()
+                                    .replace(self.oldConsoleText, ''))
+            self.waitInputCond.wakeAll()
+            self.ui.console.setReadOnly(True)
 
     def closeEvent(self, event):
         """
@@ -365,7 +423,7 @@ class MainWindow(QMainWindow):
         Clear previous output and show the ouput panel
         :return:
         """
-        self.ui.textBrowser.clear()
+        self.ui.console.clear()
         self.ui.tabWidgetOutput.show()
 
     def showBrowserTree(self, tab, rootNode):

@@ -46,7 +46,8 @@ class Symbol(object):
     """
     type_int = 0
     type_real = 1
-    type_func = 3
+    type_func = 2
+    type_read = 3
 
     def __init__(self, name, _type, value=None, size=-1):
         self.name = name
@@ -99,99 +100,59 @@ class Interpreter(object):
 
     def inter(self):
         line = 0
-        while line < len(self.codes) - 1:
-            code = self.codes[line]
-            op = code.op
-            arg1 = code.arg1
-            arg2 = code.arg2
-            tar = code.tar
+        try:
+            while line < len(self.codes) - 1:
+                code = self.codes[line]
+                op = code.op
+                arg1 = code.arg1
+                arg2 = code.arg2
+                tar = code.tar
 
-            if op == '=':
-                if str(arg1)[:2] in ['_i', '_f']:
-                    self._handle_def(arg1, arg2, tar)
-                else:
-                    self._handle_assign(arg1, tar)
-            elif op == 'f=':
-                if tar == 'main':  # enter the main function
-                    self.stack.append(Frame(len(self.codes)))
-                    line += 2
-                    continue
-                self._handle_def_func(arg1, tar)
-            elif op == '[]=':
-                self._handle_arr_assign(arg1, arg2, tar)
-            elif op == '=[]':
-                self._handle_arr_access(arg1, arg2, tar)
-            elif op in ['+', '-', '*', '/']:
-                self._handle_arithmetic(op, arg1, arg2, tar)
-            elif op == 'j':
-                line = tar
-                continue
-            elif op[:1] == 'j':
-                result = self._handle_jump_cond(op[1:], arg1, arg2)
-                if not result:  # does not meet the condition, jump
+                if op == '=':
+                    if str(arg1)[:2] in ['_i', '_f']:
+                        self._handle_def(arg1, arg2, tar)
+                    else:
+                        self._handle_assign(arg1, tar)
+                elif op == 'f=':
+                    if tar == 'main':  # enter the main function
+                        self.stack.append(Frame(len(self.codes)))
+                        line += 2
+                        continue
+                    self._handle_def_func(arg1, tar)
+                elif op == '[]=':
+                    self._handle_arr_assign(arg1, arg2, tar)
+                elif op == '=[]':
+                    self._handle_arr_access(arg1, arg2, tar)
+                elif op in ['+', '-', '*', '/']:
+                    self._handle_arithmetic(op, arg1, arg2, tar)
+                elif op == 'j':
                     line = tar
                     continue
-            elif op == 'p=':
-                self._handle_param_pass(arg1, tar)
-            elif op == '=p':
-                self._handle_param_receive(arg1, tar)
-            elif op == 'c':
-                address = self._handle_func_call(tar)
-                line = address
-                continue
-            elif op == 'r':
-                line = self._handle_func_return(tar)
-                continue
-            line += 1
-
-    def _find(self, name):
-        """
-        find the symbol  with the name `name`.
-
-        find in top frame and global symbols
-        if not found, return None
-        """
-        if len(self.stack) > 0:
-            symbol = self.top_frame.find(name)
-            if symbol:
-                return symbol
-
-        for symbol in self.globals:
-            if symbol.name == name:
-                return symbol
+                elif op[:1] == 'j':
+                    result = self._handle_jump_cond(op[1:], arg1, arg2)
+                    if not result:  # does not meet the condition, jump
+                        line = tar
+                        continue
+                elif op == 'p=':
+                    self._handle_param_pass(arg1, tar)
+                elif op == '=p':
+                    self._handle_param_receive(arg1, tar)
+                elif op == 'c':
+                    address = self._handle_func_call(tar)
+                    line = address
+                    continue
+                elif op == 'r':
+                    line = self._handle_func_return(tar)
+                    continue
+                line += 1
+        except IndexError:  # TODO error prompting
+            self.stdout.write('\nProcess finished unsuccessfully')
+        except ZeroDivisionError:
+            self.stdout.write('\nProcess finished unsuccessfully')
+        except ValueError:
+            self.stdout.write('\nProcess finished unsuccessfully')
         else:
-            return None
-
-    def _find_or_create(self, name, _type):
-        """
-        find a symbol with `name` or create it
-        :param name:
-        :param _type: symbol type
-        :return:
-        """
-        symbol = self._find(name)
-        if symbol is None:
-            symbol = Symbol(name, _type)
-            self.top_frame.append(symbol)
-        return symbol
-
-    def _gen_type_and_value(self, literal_or_name):
-        """
-        generate Symbol type and value of the literal or name
-        **used in assign**
-
-        :param literal_or_name:
-        :return: (Symbol type, value)
-        """
-        try:
-            float(literal_or_name)
-        except ValueError:  # variable name
-            s_source = self._find(literal_or_name)
-            return s_source.type, s_source.value
-        else:  # literal
-            _type = Symbol.type_int if isinstance(literal_or_name, int) else Symbol.type_real
-            value = literal_or_name
-            return _type, value
+            self.stdout.write('\nProcess finished successfully')
 
     def _handle_def(self, _type, size, tar):
         """
@@ -224,12 +185,15 @@ class Interpreter(object):
         find the two symbols and assign the value of `source`  to `tar`
         """
         _type, value = self._gen_type_and_value(source)
-
         tar = self._find_or_create(tar, _type)
         if _type == Symbol.type_int:
             tar.value = int(value)
-        else:
+        elif _type == Symbol.type_real:
             tar.value = float(value)
+        elif tar.type == Symbol.type_read:  # tar has not been defined
+            tar.value = value
+        else:  # _type==Symbol.type_read
+            tar.value = self._parse_read_value(value, tar.type)
 
     def _handle_def_func(self, entrance, name):
         """
@@ -258,7 +222,11 @@ class Interpreter(object):
 
         if not isinstance(index, int):  # index is a variable name
             index = self._find(index).value
-        arr.value[index] = value
+
+        if _type == Symbol.type_read:
+            arr.value[index] = self._parse_read_value(value, arr.type)
+        else:
+            arr.value[index] = value
 
     def _handle_arithmetic(self, op, arg1, arg2, tar):
         """
@@ -268,6 +236,9 @@ class Interpreter(object):
         arg2 = self._find(arg2)
         left = arg1.value
         right = arg2.value
+
+        if arg1.type == Symbol.type_read:
+            raise ValueError
 
         symbol = self._find_or_create(tar, arg1.type)
 
@@ -332,6 +303,8 @@ class Interpreter(object):
         elif name == 'read':
             rv = self._find('_rv')
             rv.value = self.stdin.read()
+            rv.type = Symbol.type_read
+
             return ra
         else:
             func = self._find(name)
@@ -353,3 +326,58 @@ class Interpreter(object):
         ra = self.top_frame.raddress
         self.stack.pop()
         return ra
+
+    def _find(self, name):
+        """
+        find the symbol  with the name `name`.
+
+        find in top frame and global symbols
+        if not found, return None
+        """
+        if len(self.stack) > 0:
+            symbol = self.top_frame.find(name)
+            if symbol:
+                return symbol
+
+        for symbol in self.globals:
+            if symbol.name == name:
+                return symbol
+        else:
+            return None
+
+    def _find_or_create(self, name, _type):
+        """
+        find a symbol with `name` or create it
+        :param name:
+        :param _type: symbol type
+        :return:
+        """
+        symbol = self._find(name)
+        if symbol is None:
+            symbol = Symbol(name, _type)
+            self.top_frame.append(symbol)
+        return symbol
+
+    def _gen_type_and_value(self, literal_or_name):
+        """
+        generate Symbol type and value of the literal or name
+        **used in assign**
+
+        :param literal_or_name:
+        :return: (Symbol type, value)
+        """
+        try:
+            float(literal_or_name)
+        except ValueError:  # variable name
+            s_source = self._find(literal_or_name)
+            return s_source.type, s_source.value
+        else:  # literal
+            _type = Symbol.type_int if isinstance(literal_or_name, int) else Symbol.type_real
+            value = literal_or_name
+            return _type, value
+
+    def _parse_read_value(self, read_value, tar_type):
+        if tar_type == Symbol.type_int:
+            return int(read_value)
+        else:
+            return float(read_value)

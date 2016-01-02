@@ -4,7 +4,7 @@ int[3] arr={1,2,3};
 
 void main(){
     int a=1;
-
+	 
     arr[0]=1;   // arr[0]:1
     arr[a]=2;   // arr[1]:2
 

@@ -228,7 +228,7 @@ class STable(object):
             raise ParamMismatchError()
 
         # do not check write(var) type,'cause the param can be int or real
-        if symbol.name == 'write':
+        if symbol.name in 'write':
             return
 
         # matching call param types with defined param types

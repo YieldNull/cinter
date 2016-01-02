@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'window.ui'
 #
-# Created: Mon Dec 28 22:30:03 2015
+# Created: Sat Jan  2 22:13:15 2016
 #      by: PyQt5 UI code generator 5.2.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -78,9 +78,9 @@ class Ui_MainWindow(object):
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.tabConsole)
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.textBrowser = QtWidgets.QTextBrowser(self.tabConsole)
-        self.textBrowser.setObjectName("textBrowser")
-        self.verticalLayout_2.addWidget(self.textBrowser)
+        self.console = QtWidgets.QPlainTextEdit(self.tabConsole)
+        self.console.setObjectName("console")
+        self.verticalLayout_2.addWidget(self.console)
         self.tabWidgetOutput.addTab(self.tabConsole, "")
         self.gridLayout.addWidget(self.splitterOutter, 0, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralWidget)
@@ -97,8 +97,6 @@ class Ui_MainWindow(object):
         self.menuHelp.setObjectName("menuHelp")
         self.menuView = QtWidgets.QMenu(self.menuBar)
         self.menuView.setObjectName("menuView")
-        self.menuTest = QtWidgets.QMenu(self.menuBar)
-        self.menuTest.setObjectName("menuTest")
         MainWindow.setMenuBar(self.menuBar)
         self.toolBar = QtWidgets.QToolBar(MainWindow)
         self.toolBar.setMovable(False)
@@ -235,16 +233,10 @@ class Ui_MainWindow(object):
         self.menuView.addAction(self.actionViewFiles)
         self.menuView.addAction(self.actionViewTokenTree)
         self.menuView.addAction(self.actionViewSystaxTree)
-        self.menuTest.addAction(self.actionTestLexer)
-        self.menuTest.addAction(self.actionTestParser)
-        self.menuTest.addAction(self.actionTestSemantic)
-        self.menuTest.addAction(self.actionTestCompiler)
-        self.menuTest.addAction(self.actionTestRuntime)
         self.menuBar.addAction(self.menuFile.menuAction())
         self.menuBar.addAction(self.menuEditor.menuAction())
         self.menuBar.addAction(self.menuView.menuAction())
         self.menuBar.addAction(self.menuRun.menuAction())
-        self.menuBar.addAction(self.menuTest.menuAction())
         self.menuBar.addAction(self.menuHelp.menuAction())
         self.toolBar.addAction(self.actionNew)
         self.toolBar.addAction(self.actionOpen)
@@ -279,7 +271,6 @@ class Ui_MainWindow(object):
         self.menuRun.setTitle(_translate("MainWindow", "Run"))
         self.menuHelp.setTitle(_translate("MainWindow", "Help"))
         self.menuView.setTitle(_translate("MainWindow", "View"))
-        self.menuTest.setTitle(_translate("MainWindow", "Test"))
         self.toolBar.setWindowTitle(_translate("MainWindow", "toolBar"))
         self.actionNew.setText(_translate("MainWindow", "New"))
         self.actionNew.setShortcut(_translate("MainWindow", "Ctrl+N"))
