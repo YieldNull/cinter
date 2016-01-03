@@ -15,6 +15,6 @@ void main(){
 		int r=fibonacci(i);
 		write(r);
       i=i+1;
-	 }
+	}
 	return;
 }

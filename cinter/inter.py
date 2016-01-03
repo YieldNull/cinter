@@ -255,7 +255,7 @@ class Interpreter(object):
         """
         return whether meets the cond `arg1 cond arg2`
         """
-        assert cond in ['>', '<', '==']
+        assert cond in ['>', '<', '==', '<>']
         left = self._find(arg1).value
         right = self._find(arg2).value
 
