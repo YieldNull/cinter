@@ -340,6 +340,7 @@ class MainWindow(QMainWindow):
         console.update.connect(self.updateOutput)
         self.inputReceived.connect(console.receivedInput)
         self.ui.console.blockCountChanged.connect(self.waitInput)
+        self.ui.console.textChanged.connect(self.disableBack)
 
         interp = Interpreter(codes, stdin=console, stdout=console, stderr=console)
         thread = ExecuteThread(interp.inter, self)
@@ -392,6 +393,17 @@ class MainWindow(QMainWindow):
                                     .replace(self.oldConsoleText, ''))
             self.waitInputCond.wakeAll()
             self.ui.console.setReadOnly(True)
+
+    @pyqtSlot()
+    def disableBack(self):
+        """
+        disable backspace when waiting for input
+        :return:
+        """
+        if not self.ui.console.isReadOnly():
+            if len(self.oldConsoleText) > len(self.ui.console.toPlainText()):
+                self.ui.console.setPlainText(self.oldConsoleText)
+                self.ui.console.moveCursor(QTextCursor.End)
 
     def closeEvent(self, event):
         """
