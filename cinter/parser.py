@@ -32,8 +32,6 @@ create on '10/5/15 10:36 PM'
 """
 import copy
 import sys
-
-from cinter.inter import Interpreter
 from tokens import *
 from nodes import *
 from stable import STable, SemanticsError
@@ -104,13 +102,16 @@ class Parser(object):
         Run lexer
         :return: token_tree_root_node
         """
+        echo = StringIO.StringIO()
         self.ahead = self.lexer.next_token()
         while self.ahead:
-            self._build_token_tree()
+            echo.write(self._build_token_tree())
             try:
                 self.ahead = self.lexer.next_token()
             except InvalidTokenError:
                 return
+        self.stdout.write(echo.getvalue())
+        echo.close()
         return self.tokenTree.rootNode
 
     def parse(self):
@@ -240,16 +241,18 @@ class Parser(object):
         Build token tree and print the lexer analysis result when each _get()
         :return:
         """
+        echo = ''
         if self.lexer.line != self.currentLine:
             self.currentLine = self.lexer.line
             self.tokenTree.newLine('Line %d' % self.currentLine)
             if self.mode == Parser.mode_lexer:
-                self.stdout.write('%s\n' % '%d: %s' % (self.currentLine, self.ahead))
+                echo = '%s\n' % '%d: %s' % (self.currentLine, self.ahead)
         elif self.mode == Parser.mode_lexer:
-            self.stdout.write('%s\n' % '   %d: %s' % (self.currentLine, self.ahead))
+            echo = '%s\n' % '   %d: %s' % (self.currentLine, self.ahead)
 
         if self.ahead:
             self.tokenTree.append(TokenNode(self.ahead))
+        return echo
 
     def _print_error(self, expect=None):
         """

@@ -45,14 +45,14 @@ innerStmts   ::= ( ifStmt | whileStmt | declareStmt | assignStmt | funcCallStmt 
 
 funcDefStmt         ::= returnType  <ID>  <LPAREN> ( FuncDefParamList )?  <RPAREN> <LBRACE> innerStmts <RBRACE>
 funcDefParam        ::=  dataType <ID>
-funcDefParamList    ::= ( funcDefParam ( <COMMA> funcDefParam )* | <VOID> )
+funcDefParamList    ::= funcDefParam ( <COMMA> funcDefParam )* | <VOID>
 funcCallExpr        ::= <ID> <LPAREN> ( funcCallParamList )?  <RPAREN>
 funcCallStmt        ::= funcCallExpr <SEMICOLON>
-funcCallParamList   ::= ( expr   ( <COMMA> expr  )* | <VOID> )
+funcCallParamList   ::= expr   ( <COMMA> expr  )* | <VOID>
 funcType            ::= <VOID>  | dataType
 returnStmt          ::= <RETURN> expression <SEMICOLON>
 
-dataType    ::= ( <INT> | <REAL> )
+dataType    ::= <INT> | <REAL>
 array       ::=	<LBRACKET> ( <INT_LITERAL> | <ID> )? <RBRACKET>
 
 arrayInit   ::= <LBRACE>( INT_LITERAL (<COMMA> INT_LITERAL)* | REAL_LITERAL(<COMMA> REAL_LITERAL)* ) <RBRACE>

@@ -6,6 +6,7 @@ Symbol table.
 import StringIO
 import tokens
 
+__author__ = 'hejunjie'
 
 class SemanticsError(Exception):
     def __init__(self, error):
