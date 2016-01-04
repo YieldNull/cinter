@@ -266,8 +266,10 @@ class Interpreter(object):
             return left > right
         elif cond == '<':
             return left < right
-        else:
+        elif cond == '==':
             return left == right
+        else:
+            return left != right
 
     def _handle_param_pass(self, source, tar):
         """
