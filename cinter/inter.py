@@ -3,7 +3,7 @@
 """
 An interpreter base on `Code`
 
-may cause ZeroDivisionError and IndexError
+may cause ZeroDivisionError , IndexError, ValueError
 """
 import sys
 
@@ -145,11 +145,14 @@ class Interpreter(object):
                     line = self._handle_func_return(tar)
                     continue
                 line += 1
-        except IndexError:  # TODO error prompting
+        except IndexError:
+            self.stdout.write('***IndexError***\n')
             self.stdout.write('\nProcess finished unsuccessfully')
         except ZeroDivisionError:
+            self.stdout.write('***ZeroDivisionError***\n')
             self.stdout.write('\nProcess finished unsuccessfully')
         except ValueError:
+            self.stdout.write('***ReadValueError***\n')
             self.stdout.write('\nProcess finished unsuccessfully')
         else:
             self.stdout.write('\nProcess finished successfully')
