@@ -8,6 +8,7 @@ import tokens
 
 __author__ = 'hejunjie'
 
+
 class SemanticsError(Exception):
     def __init__(self, error):
         self.error = error
@@ -268,13 +269,19 @@ class STable(object):
         :return:
         """
         stdout = StringIO.StringIO()
-        for i in range(len(self.symbols)):
-            symbol = self.symbols[i]
-            indent = '|---' + '----' * (level - 1) + '>'
-            stdout.write('%s(%s:%s)\n' % (indent, symbol.name, symbol.stype.type.lexeme))
+        if len(self.symbols) != 0:
+            for i in range(len(self.symbols)):
+                symbol = self.symbols[i]
+                indent = '|---' + '----' * (level - 1) + ('>o' if i == 0 else '>')  # first symbol
+                stdout.write('%s(%s:%s)\n' % (indent, symbol.name, symbol.stype.type.lexeme))
 
-            if i in self.children_tsindex:
-                stdout.write(self.table_child_at(self.children_tsindex.index(i)).gen_tree(level + 1))
+                for child in self.children:
+                    if child.tsindex == i:
+                        stdout.write(child.gen_tree(level + 1))
+        else:
+            for child in self.children:
+                if child.tsindex == -1:
+                    stdout.write(child.gen_tree(level + 1))
         value = stdout.getvalue()
         stdout.close()
         return value
