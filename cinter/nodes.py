@@ -551,7 +551,7 @@ class ReturnStmtNode(Node):
         if self.childCount() > 0:
             codes = self.childAt(0).gen_code()
             codes.append(Code(op='=', arg1=codes[len(codes) - 1].tar, tar='_rv'))
-            codes.append(Code('r', tar='_ra'))
+            codes.append(Code('r'))  # Code('r', tar='_ra')
         else:
             codes = [Code(op='=', arg1='00', tar='_rv'), Code('r')]  # Code('r', tar='_ra')
         return codes
