@@ -1,9 +1,9 @@
-A CMM (C Minus Minus) Interpreter Written in Python
+An Interpreter for a C-Like-Language Written in Python
 
 ### Appendix A: Grammar
 
 See [grammar.txt](grammar.txt)
 
-### Appendix B: DFA states of CMM
+### Appendix B: Document
 
-![](assets/CMM_DFA.png)
+See [document.pdf](assets/document.pdf)
