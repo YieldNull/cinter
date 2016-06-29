@@ -7,3 +7,7 @@ See [grammar.txt](grammar.txt)
 ### Appendix B: Document
 
 See [document.pdf](assets/document.pdf)
+
+### ScreenShot
+
+![screenshot.png](screenshot.png)
