@@ -1,4 +1,4 @@
-An Interpreter for a C-Like-Language Written in Python (CMM解释器)
+An Interpreter for a C-Like-Language Written in Python
 
 ### Appendix A: Grammar
 
