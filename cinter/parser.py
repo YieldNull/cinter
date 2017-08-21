@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding:utf-8
-
 """
 Using a recursive descent parser for analysing.
 
@@ -32,12 +29,12 @@ create on '10/5/15 10:36 PM'
 """
 import copy
 import sys
-from tokens import *
-from nodes import *
-from stable import STable, SemanticsError
-from lexer import Lexer, InvalidTokenError
+from cinter.tokens import *
+from cinter.nodes import *
+from cinter.stable import STable, SemanticsError
+from cinter.lexer import Lexer, InvalidTokenError
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 def _read_keyboard():
@@ -45,10 +42,10 @@ def _read_keyboard():
     read source from keyboard
     :return:
     """
-    fileobj = StringIO.StringIO()
+    fileobj = StringIO()
     while True:
         try:
-            line = raw_input()
+            line = input()
         except EOFError:
             break
         # add '\n' to each line
@@ -56,7 +53,7 @@ def _read_keyboard():
 
     content = fileobj.getvalue()
     fileobj.close()
-    return StringIO.StringIO(content)
+    return StringIO(content)
 
 
 def _read_file(path):
@@ -102,7 +99,7 @@ class Parser(object):
         Run lexer
         :return: token_tree_root_node
         """
-        echo = StringIO.StringIO()
+        echo = StringIO()
         self.ahead = self.lexer.next_token()
         while self.ahead:
             echo.write(self._build_token_tree())
@@ -150,7 +147,7 @@ class Parser(object):
             node, stable = stack.pop()
             try:
                 table = node.gen_stable(stable)
-            except SemanticsError, e:
+            except SemanticsError as e:
                 self.stderr.write('%s %s\n' % (str(e), node.gen_location()))
                 return None
             else:
@@ -707,7 +704,7 @@ class Parser(object):
 
 if __name__ == '__main__':
     if len(sys.argv) > 2:
-        print 'too many args'
+        print('too many args')
         sys.exit(0)
 
     if len(sys.argv) == 1:

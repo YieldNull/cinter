@@ -1,5 +1,3 @@
-# coding:utf-8
-
 """
 An interpreter base on `Code`
 

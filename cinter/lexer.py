@@ -1,4 +1,3 @@
-# coding:utf-8
 """
 A lexer to recognize tokens
 create on '10/5/15 10:36 PM'
@@ -21,9 +20,9 @@ to record the previous line when we switch to a new line.
 """
 
 import sys
-import tokens
+import cinter.tokens as tokens
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 # we use 'rU' to read a file and
 # append '\n' to the end of per line

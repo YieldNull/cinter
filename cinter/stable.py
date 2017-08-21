@@ -1,12 +1,10 @@
-# coding:utf-8
-
 """
 Symbol table.
 """
-import StringIO
-import tokens
+from io import StringIO
+import cinter.tokens as tokens
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class SemanticsError(Exception):
@@ -93,7 +91,7 @@ class Symbol(object):
     """
 
     def __init__(self, name, stype):
-        assert isinstance(name, basestring)
+        assert isinstance(name, str)
         assert isinstance(stype, SType)
 
         self.name = name

@@ -1,4 +1,3 @@
-# coding:utf-8
 """
 Main window.
 
@@ -10,8 +9,8 @@ import ntpath
 
 from cinter.inter import Interpreter
 from cinter.parser import Parser
-from gui.editor import CodeEditor
-from ui_window import Ui_MainWindow
+from cinter.gui.editor import CodeEditor
+from cinter.gui.ui_window import Ui_MainWindow
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QTextCursor, QColor, QFont
 from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
@@ -20,7 +19,7 @@ from PyQt5.QtCore import (QDir, pyqtSlot, QCoreApplication,
 from PyQt5.QtWidgets import (QMainWindow, QFileSystemModel,
                              QFileDialog, QAction, QApplication, QMessageBox)
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class Console(QObject):
@@ -685,7 +684,7 @@ class MainWindow(QMainWindow):
             self.ui.tabWidgetEditor.setCurrentIndex(index)
             self.currentEditor.setPlainText(content)
 
-    @pyqtSlot(int)
+    @pyqtSlot(QModelIndex)
     def openFileFromTree(self, index):
         f = self.fileTreeModel.fileInfo(index)
         if f.isFile():

@@ -1,15 +1,14 @@
-# coding:utf-8
 """
 Nodes of abstract grammar tree.
 
 create on '11/9/15 12:54 PM'
 """
-import StringIO
-import tokens
-from stable import Symbol, STypeFunc, STable, SType, STypeArray, SUnknown, IndexMissingError
-from inter import Code
+from io import StringIO
+import cinter.tokens as tokens
+from cinter.stable import Symbol, STypeFunc, STable, SType, STypeArray, SUnknown, IndexMissingError
+from cinter.inter import Code
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class Node(object):

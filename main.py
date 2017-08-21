@@ -1,15 +1,14 @@
-# coding:utf-8
 """
 create on '11/15/15 2:37 PM'
 """
 
 import sys
 from PyQt5.QtWidgets import QApplication
-from gui.window import MainWindow
+from cinter.gui.window import MainWindow
 
 import logging
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

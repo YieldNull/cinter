@@ -1,4 +1,3 @@
-# coding:utf-8
 """
 create on '11/14/15 11:51 AM'
 """
@@ -6,9 +5,9 @@ from PyQt5.QtCore import pyqtSlot, QSize, QRect, Qt
 from PyQt5.QtGui import QColor, QTextFormat, QPainter, QFont, QFontMetrics
 from PyQt5.QtWidgets import QWidget, QTextEdit
 from PyQt5.QtWidgets import QPlainTextEdit
-from gui.highlighter import Highlighter
+from cinter.gui.highlighter import Highlighter
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class LineNumArea(QWidget):

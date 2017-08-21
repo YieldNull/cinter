@@ -1,12 +1,11 @@
-# coding:utf-8
-'''
+"""
 create on '11/14/15 11:44 AM'
-'''
+"""
 
 from PyQt5.QtCore import QRegExp, Qt
 from PyQt5.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter, QTextDocument
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class Rule(object):

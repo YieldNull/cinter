@@ -1,4 +1,3 @@
-# coding:utf-8
 """
 create on '10/5/15 10:36 PM'
 
@@ -22,7 +21,7 @@ Here is all the tokens:
         REAL_LITERAL::= <INT_LITERAL> ( "."(INT_LITERAL)+ )?
 """
 
-__author__ = 'hejunjie'
+__author__ = 'YieldNull'
 
 
 class Token(object):

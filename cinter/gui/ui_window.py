@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Form implementation generated from reading ui file 'window.ui'
 #
 # Created: Sat Jan  2 22:13:15 2016
@@ -9,7 +7,7 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from gui.editor import CodeEditor
+from cinter.gui.editor import CodeEditor
 
 
 class Ui_MainWindow(object):
@@ -317,4 +315,4 @@ class Ui_MainWindow(object):
         self.actionShowStable.setText(_translate("MainWindow", "Show Stable"))
 
 
-import cinter_rc
+import cinter.gui.cinter_rc
